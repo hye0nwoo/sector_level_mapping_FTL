@@ -25,11 +25,14 @@
 //  + logging entire FTL metadata when each ATA commands(idle/ready/standby) was issued
 //
 
+// [TODO]: modify vcount related ASSERT code or setting code.
+
 #include "jasmine.h"
 
 //----------------------------------
 // macro
 //----------------------------------
+// [TODO] check if VC_MAX is correct?
 #define VC_MAX              0xCDCD
 #define MISCBLK_VBN         0x1 // vblock #1 <- misc metadata
 #define MAPBLKS_PER_BANK    (((PAGE_MAP_BYTES / NUM_BANKS) + BYTES_PER_PAGE - 1) / BYTES_PER_PAGE)
@@ -326,6 +329,13 @@ void ftl_read(UINT32 const lba, UINT32 const num_sectors)
 
     while (remain_sects != 0)
     {
+        /*
+         * [TODO] read requested sectors. (unit: sector)
+         *          1.   check if corresponding sector is included in merge buffer 
+         *          2-1. if it is in merge buffer read corresponding buffer region
+         *          2-1. get_vpn(lpn), access corresponding vpn and read data requested
+         */
+
         if ((sect_offset + remain_sects) < SECTORS_PER_PAGE)
         {
             num_sectors_to_read = remain_sects;
@@ -385,6 +395,20 @@ void ftl_write(UINT32 const lba, UINT32 const num_sectors)
 
     while (remain_sects != 0)
     {
+        /*
+         * [TODO] 
+         *       add merge buffer referece code here.
+         *       check if requested page is included in merge buffer   
+         *       yes. update merge buffer    no. add sector in merge buffer and update psn(physical sector no.)
+         */
+
+
+
+        /*
+         * [TODO]
+         *       if merge buffer is full flush merge buffer        
+         */
+
         if ((sect_offset + remain_sects) < SECTORS_PER_PAGE)
         {
             num_sectors_to_write = remain_sects;
@@ -499,6 +523,7 @@ static void write_page(UINT32 const lpn, UINT32 const sect_offset, UINT32 const 
     }
     vblock   = new_vpn / PAGES_PER_BLK;
     page_num = new_vpn % PAGES_PER_BLK;
+    // get_vcount < SECTORS_PER_BLK.
     ASSERT(get_vcount(bank,vblock) < (PAGES_PER_BLK - 1));
 
     // write new data (make sure that the new data is ready in the write buffer frame)
@@ -511,6 +536,7 @@ static void write_page(UINT32 const lpn, UINT32 const sect_offset, UINT32 const 
     // update metadata
     set_lpn(bank, page_num, lpn);
     set_vpn(lpn, new_vpn);
+    // [TODO] : change vcount to sector unit
     set_vcount(bank, vblock, get_vcount(bank, vblock) + 1);
 }
 // get vpn from PAGE_MAP
@@ -541,6 +567,7 @@ static UINT32 get_vcount(UINT32 const bank, UINT32 const vblock)
     return vcount;
 }
 // set valid page count of vblock
+// [TODO] : change vcount representation to sector level
 static void set_vcount(UINT32 const bank, UINT32 const vblock, UINT32 const vcount)
 {
     ASSERT(bank < NUM_BANKS);
