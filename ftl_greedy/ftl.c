@@ -58,6 +58,12 @@ typedef struct _misc_metadata
     UINT32 cur_mapblk_vpn[MAPBLKS_PER_BANK]; // current write vpn for logging the age mapping info.
     UINT32 gc_vblock; // vblock number for garbage collection
     UINT32 free_blk_cnt; // total number of free block count
+    /*
+     * [TODO]: 
+     * change to SECTORS_PER_BLK 
+     * (p2l list size check and check if it can be stored in a block)
+     * UINT32 lsn_list_of_cur_vblock[SECTORS_PER_BLK];
+     */
     UINT32 lpn_list_of_cur_vblock[PAGES_PER_BLK]; // logging lpn list of current write vblock for GC
 }misc_metadata; // per bank
 
@@ -97,6 +103,7 @@ UINT32 				  g_ftl_write_buf_id;
 #define set_new_write_vpn(bank, vpn)  (g_misc_meta[bank].cur_write_vpn = vpn)
 #define get_gc_vblock(bank)           (g_misc_meta[bank].gc_vblock)
 #define set_gc_vblock(bank, vblock)   (g_misc_meta[bank].gc_vblock = vblock)
+// [TODO]: change p2l table reference. 
 #define set_lpn(bank, page_num, lpn)  (g_misc_meta[bank].lpn_list_of_cur_vblock[page_num] = lpn)
 #define get_lpn(bank, page_num)       (g_misc_meta[bank].lpn_list_of_cur_vblock[page_num])
 #define get_miscblk_vpn(bank)         (g_misc_meta[bank].cur_miscblk_vpn)
@@ -399,14 +406,13 @@ void ftl_write(UINT32 const lba, UINT32 const num_sectors)
          * [TODO] 
          *       add merge buffer referece code here.
          *       check if requested page is included in merge buffer   
-         *       yes. update merge buffer    no. add sector in merge buffer and update psn(physical sector no.)
+         *       (yes) update merge buffer    
+         *       (no)  add sector in merge buffer and update psn(physical sector no.)
          */
-
-
 
         /*
          * [TODO]
-         *       if merge buffer is full flush merge buffer        
+         *       if merge buffer is full flush merge buffer and write in NAND     
          */
 
         if ((sect_offset + remain_sects) < SECTORS_PER_PAGE)
@@ -438,6 +444,8 @@ static void write_page(UINT32 const lpn, UINT32 const sect_offset, UINT32 const 
     page_offset = sect_offset;
     column_cnt  = num_sectors;
 
+    // [TODO]: need to invalidate about each vsn in merge buffer
+    // [TODO]: make loop, to check for each lsn.
     new_vpn  = assign_new_write_vpn(bank);
     old_vpn  = get_vpn(lpn);
 
@@ -534,6 +542,7 @@ static void write_page(UINT32 const lpn, UINT32 const sect_offset, UINT32 const 
                                   page_offset,
                                   column_cnt);
     // update metadata
+    // [TODO] : change setting (sector unit)
     set_lpn(bank, page_num, lpn);
     set_vpn(lpn, new_vpn);
     // [TODO] : change vcount to sector unit
@@ -673,6 +682,7 @@ static void garbage_collection(UINT32 const bank)
                      ((sizeof(UINT32) * PAGES_PER_BLK + BYTES_PER_SECTOR - 1 ) / BYTES_PER_SECTOR), FTL_BUF(bank), RETURN_WHEN_DONE);
     mem_copy(g_misc_meta[bank].lpn_list_of_cur_vblock, FTL_BUF(bank), sizeof(UINT32) * PAGES_PER_BLK);
     // 2. copy-back all valid pages to free space
+    // [TODO]: change to sector level. think about copy back [using buffer(?)]
     for (src_page = 0; src_page < (PAGES_PER_BLK - 1); src_page++)
     {
         // get lpn of victim block from a read lpn list
@@ -689,7 +699,7 @@ static void garbage_collection(UINT32 const bank)
         ASSERT(get_lpn(bank, src_page) != INVALID);
         CHECK_LPAGE(src_lpn);
         // if the page is valid,
-        // then do copy-back op. to free space
+        // then do copy-back op. to free space: 
         nand_page_copyback(bank,
                            vt_vblock,
                            src_page,
