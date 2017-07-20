@@ -42,6 +42,9 @@
 #define NUM_MISC_META_SECT  ((sizeof(misc_metadata) + BYTES_PER_SECTOR - 1)/ BYTES_PER_SECTOR)
 #define NUM_VCOUNT_SECT     ((VBLKS_PER_BANK * sizeof(UINT16) + BYTES_PER_SECTOR - 1) / BYTES_PER_SECTOR)
 
+// sectors_per_block
+#define SECTORS_PER_BLK	(SECTORS_PER_PAGE * PAGES_PER_BLK)
+
 //----------------------------------
 // metadata structure
 //----------------------------------
@@ -60,9 +63,11 @@ typedef struct _misc_metadata
     UINT32 free_blk_cnt; // total number of free block count
     /*
      * [TODO]: 
-     * change to SECTORS_PER_BLK 
-     * (p2l list size check and check if it can be stored in a block)
-     * UINT32 lsn_list_of_cur_vblock[SECTORS_PER_BLK];
+     * - change lpn_list_of_cur_vblock lenght to SECTORS_PER_BLK 
+     *      (p2l list size check and check if it can be stored in a block)
+     *      UINT32 lsn_list_of_cur_vblock[SECTORS_PER_BLK];
+     *	    size of P2L table: SECTORS_PER_BLK * sizeof(UINT32) * BLKS_PER_BANK for each bank
+     * - add buffer offset(?) information
      */
     UINT32 lpn_list_of_cur_vblock[PAGES_PER_BLK]; // logging lpn list of current write vblock for GC
 }misc_metadata; // per bank
@@ -527,12 +532,13 @@ static void write_page(UINT32 const lpn, UINT32 const sect_offset, UINT32 const 
         page_offset = 0;
         column_cnt  = SECTORS_PER_PAGE;
         // invalid old page (decrease vcount)
+	// [TODO] change vcount policy. (find vblock for each sectors in merge buffer and vcount-1)
         set_vcount(bank, vblock, get_vcount(bank, vblock) - 1);
     }
     vblock   = new_vpn / PAGES_PER_BLK;
     page_num = new_vpn % PAGES_PER_BLK;
-    // get_vcount < SECTORS_PER_BLK.
-    ASSERT(get_vcount(bank,vblock) < (PAGES_PER_BLK - 1));
+    // [TODO]: get_vcount < SECTORS_PER_BLK.
+    ASSERT(get_vcount(bank,vblock) < (SECTORS_PER_BLK - 1));
 
     // write new data (make sure that the new data is ready in the write buffer frame)
     // (c.f FO_B_SATA_W flag in flash.h)
@@ -545,7 +551,7 @@ static void write_page(UINT32 const lpn, UINT32 const sect_offset, UINT32 const 
     // [TODO] : change setting (sector unit)
     set_lpn(bank, page_num, lpn);
     set_vpn(lpn, new_vpn);
-    // [TODO] : change vcount to sector unit
+    // [TODO] : change vcount to sector unit, get_vcount(bank, vblock) + SECTORS_PER_PAGE
     set_vcount(bank, vblock, get_vcount(bank, vblock) + 1);
 }
 // get vpn from PAGE_MAP
@@ -562,6 +568,7 @@ static void set_vpn(UINT32 const lpn, UINT32 const vpn)
 
     write_dram_32(PAGE_MAP_ADDR + lpn * sizeof(UINT32), vpn);
 }
+
 // get valid page count of vblock
 static UINT32 get_vcount(UINT32 const bank, UINT32 const vblock)
 {
@@ -571,7 +578,8 @@ static UINT32 get_vcount(UINT32 const bank, UINT32 const vblock)
     ASSERT((vblock >= META_BLKS_PER_BANK) && (vblock < VBLKS_PER_BANK));
 
     vcount = read_dram_16(VCOUNT_ADDR + (((bank * VBLKS_PER_BANK) + vblock) * sizeof(UINT16)));
-    ASSERT((vcount < PAGES_PER_BLK) || (vcount == VC_MAX));
+    // [TODO]: SECTORS_PER_BLK
+    ASSERT((vcount < SECTORS_PER_BLK) || (vcount == VC_MAX));
 
     return vcount;
 }
@@ -581,7 +589,8 @@ static void set_vcount(UINT32 const bank, UINT32 const vblock, UINT32 const vcou
 {
     ASSERT(bank < NUM_BANKS);
     ASSERT((vblock >= META_BLKS_PER_BANK) && (vblock < VBLKS_PER_BANK));
-    ASSERT((vcount < PAGES_PER_BLK) || (vcount == VC_MAX));
+    // [TODO]: SECTORS_PER_BLK
+    ASSERT((vcount < SECTORS_PER_BLK) || (vcount == VC_MAX));
 
     write_dram_16(VCOUNT_ADDR + (((bank * VBLKS_PER_BANK) + vblock) * sizeof(UINT16)), vcount);
 }
@@ -672,7 +681,8 @@ static void garbage_collection(UINT32 const bank)
 
     ASSERT(vt_vblock != gc_vblock);
     ASSERT(vt_vblock >= META_BLKS_PER_BANK && vt_vblock < VBLKS_PER_BANK);
-    ASSERT(vcount < (PAGES_PER_BLK - 1));
+    // [TODO]: SECTORS_PER_BLK
+    ASSERT(vcount < (SECTORS_PER_BLK - 1));
     ASSERT(get_vcount(bank, gc_vblock) == VC_MAX);
     ASSERT(!is_bad_block(bank, gc_vblock));
 
@@ -682,7 +692,7 @@ static void garbage_collection(UINT32 const bank)
                      ((sizeof(UINT32) * PAGES_PER_BLK + BYTES_PER_SECTOR - 1 ) / BYTES_PER_SECTOR), FTL_BUF(bank), RETURN_WHEN_DONE);
     mem_copy(g_misc_meta[bank].lpn_list_of_cur_vblock, FTL_BUF(bank), sizeof(UINT32) * PAGES_PER_BLK);
     // 2. copy-back all valid pages to free space
-    // [TODO]: change to sector level. think about copy back [using buffer(?)]
+    // [TODO]: change to sector level. think about copy back policy [using buffer(?)]
     for (src_page = 0; src_page < (PAGES_PER_BLK - 1); src_page++)
     {
         // get lpn of victim block from a read lpn list
@@ -752,7 +762,8 @@ static UINT32 get_vt_vblock(UINT32 const bank)
 
     ASSERT(is_bad_block(bank, vblock) == FALSE);
     ASSERT(vblock >= META_BLKS_PER_BANK && vblock < VBLKS_PER_BANK);
-    ASSERT(get_vcount(bank, vblock) < (PAGES_PER_BLK - 1));
+    // [TODO]: SECTORS_PER_BLK
+    ASSERT(get_vcount(bank, vblock) < (SECTORS_PER_BLK - 1));
 
     return vblock;
 }
@@ -774,6 +785,7 @@ static void format(void)
     //----------------------------------------
     mem_set_dram(PAGE_MAP_ADDR, NULL, PAGE_MAP_BYTES);
     mem_set_dram(VCOUNT_ADDR, NULL, VCOUNT_BYTES);
+    // [TODO]: mem_set_dram(MERGE_BUF_ADDR, NULL, MERGE_BUF_BYTES);
 
     //----------------------------------------
     // erase all blocks except vblock #0
