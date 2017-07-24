@@ -23,7 +23,7 @@
 // - support POR
 //  + fixed metadata area (Misc. block/Map block)
 //  + logging entire FTL metadata when each ATA commands(idle/ready/standby) was issued
-//
+//test
 
 #include "jasmine.h"
 
