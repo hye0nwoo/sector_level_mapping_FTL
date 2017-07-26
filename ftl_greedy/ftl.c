@@ -32,7 +32,7 @@
 //----------------------------------
 #define VC_MAX              0xCDCD
 #define MISCBLK_VBN         0x1 // vblock #1 <- misc metadata
-#define MAPBLKS_PER_BANK    (((PAGE_MAP_BYTES / NUM_BANKS) + BYTES_PER_PAGE - 1) / BYTES_PER_PAGE)
+#define MAPBLKS_PER_BANK    (((SECTOR_MAP_BYTES / NUM_BANKS) + BYTES_PER_PAGE - 1) / BYTES_PER_PAGE)
 #define META_BLKS_PER_BANK  (1 + 1 + MAPBLKS_PER_BANK) // include block #0, misc block
 
 // the number of sectors of misc. metadata info.
@@ -129,7 +129,7 @@ static UINT32 assign_new_write_vpn(UINT32 const bank);
 static void sanity_check(void)
 {
     UINT32 dram_requirement = RD_BUF_BYTES + WR_BUF_BYTES + COPY_BUF_BYTES + FTL_BUF_BYTES
-        + HIL_BUF_BYTES + TEMP_BUF_BYTES + BAD_BLK_BMP_BYTES + PAGE_MAP_BYTES + VCOUNT_BYTES;
+        + HIL_BUF_BYTES + TEMP_BUF_BYTES + BAD_BLK_BMP_BYTES + CACHE_MAP_BYTES + VCOUNT_BYTES;
 
     if ((dram_requirement > DRAM_SIZE) || // DRAM metadata size check
         (sizeof(misc_metadata) > BYTES_PER_PAGE)) // misc metadata size check
@@ -735,7 +735,7 @@ static void format(void)
     //----------------------------------------
     // initialize DRAM metadata
     //----------------------------------------
-    mem_set_dram(PAGE_MAP_ADDR, NULL, PAGE_MAP_BYTES);
+    mem_set_dram(CACHE_MAP_ADDR, NULL, CACHE_MAP_BYTES);
     mem_set_dram(VCOUNT_ADDR, NULL, VCOUNT_BYTES);
 
     //----------------------------------------
@@ -943,8 +943,8 @@ static void logging_pmap_table(void)
 // load flushed FTL metadta
 static void load_metadata(void)
 {
-    load_misc_metadata();
-    load_pmap_table();
+    load_misc_metadata();   // vcount값 저장할 수 있도록 수정 필요?
+    //load_pmap_table();
 }
 // misc + VCOUNT
 static void load_misc_metadata(void)
