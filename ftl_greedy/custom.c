@@ -1,4 +1,6 @@
-#define is_mapping_table_full(bank)	(???)//is_full_all_blks(bank)와 같은 방식으로 하면 될듯 합니다
+#define is_mapping_table_full(bank)	(g_misc_meta[bank].free_blk_cnt == 1)	// is_full_all_blks(bank)와 같은 방식으로 하면 될듯 합니다
+#define inc_map_blk_cnt(bank)  (g_misc_meta[bank].map_free_blk_cnt--)
+#define dec_map_blk_cnt(bank)  (g_misc_meta[bank].map_free_blk_cnt++)
 
 static void set_vsn(UINT32 const lsn, UINT32 const vsn)
 {
@@ -6,6 +8,7 @@ static void set_vsn(UINT32 const lsn, UINT32 const vsn)
 
   if(!is_mapping_table_cached(lsn))
   {
+  	inc_map_blk_cnt(bank);
   	if(!is_mapping_table_full(bank))
   	{
   		flush_page(bank);	//민지누나가 짜셔야 할 부분
@@ -29,6 +32,7 @@ static UINT32 get_vsn(UINT32 const lsn)
 
   if(!is_mapping_table_cached(lsn))
   {
+  	inc_map_blk_cnt(bank);
   	if(!is_mapping_table_full(bank))
   	{
   		flush_page(bank);	//민지누나가 짜셔야 할 부분
@@ -58,7 +62,10 @@ static int is_mapping_table_cached(UINT32 const lsn)
 }
 
 
-static void caching_table(??)
+static void caching_table(UINT32 const bank)
 {
-	//
+	//?????
+
+	//update metadata
+	dec_map_blk_cnt(bank);
 }
