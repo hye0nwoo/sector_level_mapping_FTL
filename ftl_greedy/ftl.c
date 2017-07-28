@@ -25,8 +25,6 @@
 //  + logging entire FTL metadata when each ATA commands(idle/ready/standby) was issued
 //
 
-// [TODO]: modify vcount related ASSERT code or setting code.
-
 #include "jasmine.h"
 
 //----------------------------------
@@ -61,15 +59,9 @@ typedef struct _misc_metadata
     UINT32 cur_mapblk_vpn[MAPBLKS_PER_BANK]; // current write vpn for logging the age mapping info.
     UINT32 gc_vblock; // vblock number for garbage collection
     UINT32 free_blk_cnt; // total number of free block count
-    /*
-     * [TODO]: 
-     * - change lpn_list_of_cur_vblock lenght to SECTORS_PER_BLK 
-     *      (p2l list size check and check if it can be stored in a block)
-     *      UINT32 lsn_list_of_cur_vblock[SECTORS_PER_BLK];
-     *	    size of P2L table: SECTORS_PER_BLK * sizeof(UINT32) * BLKS_PER_BANK for each bank
-     * - add buffer offset(?) information
-     */
     UINT32 lpn_list_of_cur_vblock[PAGES_PER_BLK]; // logging lpn list of current write vblock for GC
+    UINT32 merge_buf_offset;  // how many merge buffer is filled
+    UINT32 merge_buf_lsn_offset[SECTORS_PER_PAGE]; // lsn managing table
 }misc_metadata; // per bank
 
 //----------------------------------
@@ -103,6 +95,7 @@ UINT32 				  g_ftl_write_buf_id;
 
 // page-level striping technique (I/O parallelism)
 #define get_num_bank(lpn)             ((lpn) % NUM_BANKS)
+#define get_lsn_bank(lsn)	      ((lsn) % NUM_BANKS)
 #define get_bad_blk_cnt(bank)         (g_bad_blk_count[bank])
 #define get_cur_write_vpn(bank)       (g_misc_meta[bank].cur_write_vpn)
 #define set_new_write_vpn(bank, vpn)  (g_misc_meta[bank].cur_write_vpn = vpn)
@@ -117,6 +110,8 @@ UINT32 				  g_ftl_write_buf_id;
 #define set_mapblk_vpn(bank, mapblk_lbn, vpn) (g_misc_meta[bank].cur_mapblk_vpn[mapblk_lbn] = vpn)
 #define CHECK_LPAGE(lpn)              ASSERT((lpn) < NUM_LPAGES)
 #define CHECK_VPAGE(vpn)              ASSERT((vpn) < (VBLKS_PER_BANK * PAGES_PER_BLK))
+#define EXIST_MERGE_BUF(psn) (0x80000000 & (psn)) // check if specific lsn is in merge buffer
+// EXIST_MERGE_BUF(get_psn(lsn)); 
 
 //----------------------------------
 // FTL internal function prototype
@@ -785,7 +780,7 @@ static void format(void)
     //----------------------------------------
     mem_set_dram(PAGE_MAP_ADDR, NULL, PAGE_MAP_BYTES);
     mem_set_dram(VCOUNT_ADDR, NULL, VCOUNT_BYTES);
-    // [TODO]: mem_set_dram(MERGE_BUF_ADDR, NULL, MERGE_BUF_BYTES);
+    mem_set_dram(MERGE_BUF_ADDR, NULL, MERGE_BUF_BYTES);
 
     //----------------------------------------
     // erase all blocks except vblock #0
