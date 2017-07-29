@@ -7,7 +7,7 @@ static void set_vsn(UINT32 const lsn, UINT32 const vsn)
   int map_addr;
 
 	map_addr = CACHE_MAP_ADDR + find_caching_addr(bank);
-  //update metadata
+  ///update metadata to CACHE_LRU_TABLE
   //????
 
   write_dram_32(map_addr + (lsn % SECTORS_PER_PAGE) * sizeof(UINT32), vsn);
@@ -19,7 +19,7 @@ static UINT32 get_vsn(UINT32 const lsn)
   int map_addr;
 
 	map_addr = CACHE_MAP_ADDR + find_caching_addr(bank);
-  //update metadata
+  //update metadata to CACHE_LRU_TABLE
   //????
 
   return read_dram_32(map_addr + (lsn % SECTORS_PER_PAGE) * sizeof(UINT32));
@@ -42,7 +42,6 @@ static UINT32 find_caching_addr(UINT32 const bank)
 
   addr = free_page_addr(bank);	// caching mapping table을 관리하는 테이블로부터 free page addr을 반환하는 함수, 민지누나가 짜셔야 할 부분
 
-	//update metadata
 	dec_map_blk_cnt(bank);
 
 	return  addr;
@@ -55,6 +54,6 @@ static int is_mapping_table_cached(UINT32 const lsn)
 	{
 		return true;
 	}
-	
+
 	return false;
 }
