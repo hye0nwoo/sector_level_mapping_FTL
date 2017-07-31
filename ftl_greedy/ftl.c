@@ -144,6 +144,20 @@ static void write_merge_buf(UINT32 const bank, UINT32 const lsn);
 static void update_merge_buf(UINT32 const bank, UINT32 const lsn);
 static void get_merge_buf(UINT32 const bank, UINT32 const lsn);
 static void merge_buf_flush(UINT32 bank);
+// [MODIFIED] FOR Compile
+static UINT32 get_vsn(UINT32 const lsn); 
+static void set_vsn(UINT32 const lsn, UINT32 const vsn);
+
+static UINT32 get_vsn(UINT32 const lsn)
+{
+	UINT32 temp=1;
+	return temp;
+}
+
+static void set_vsn(UINT32 const lsn, UINT32 const vsn)
+{
+	//pass
+}
 
 static void sanity_check(void)
 {
@@ -335,78 +349,95 @@ void ftl_test_write(UINT32 const lba, UINT32 const num_sectors)
 }
 void ftl_read(UINT32 const lba, UINT32 const num_sectors)
 {
-    UINT32 remain_sects, num_sectors_to_read;
-    UINT32 lpn, sect_offset;
-    UINT32 bank, vpn;
+    UINT32 remain_sects, num_sectors_to_read=0;
+	UINT32 lsn, sect_offset;
+    UINT32 bank, vsn;
+	UINT32 flag = 0;
 
-    lpn          = lba / SECTORS_PER_PAGE;
-    sect_offset  = lba % SECTORS_PER_PAGE;
-    remain_sects = num_sectors;
+	lsn = lba;  
+	remain_sects = num_sectors;
 
     while (remain_sects != 0)
     {
         /*
          * [TODO] read requested sectors. (unit: sector)
+		 *			0.	 assign new variable [@vsn] [@lsn] 
          *          1.   check if corresponding sector is included in merge buffer 
          *          2-1. if it is in merge buffer read corresponding buffer region
          *          2-1. get_vpn(lpn), access corresponding vpn and read data requested
          */
 
-        if ((sect_offset + remain_sects) < SECTORS_PER_PAGE)
-        {
-            num_sectors_to_read = remain_sects;
-        }
-        else
-        {
-            num_sectors_to_read = SECTORS_PER_PAGE - sect_offset;
-        }
-        bank = get_num_bank(lpn); // page striping
-        vpn  = get_vpn(lpn);
-        CHECK_VPAGE(vpn);
+		flag = 0; // [MODIFIED] Have to discuss with
+       	bank = get_num_bank(lsn); // page striping
+        vsn  = get_vpn(lsn);
+		// CHECK_VPAGE(vpn); [MODIFIED] NOT NECESSARY
 
-        if (vpn != NULL)
-        {
-            nand_page_ptread_to_host(bank,
-                                     vpn / PAGES_PER_BLK,
-                                     vpn % PAGES_PER_BLK,
+		// 1. check if corresponding sector is existed in merge buffer
+		if(EXIST_MERGE_BUF(vsn))
+		{
+			// 2-1. get data from merge buffer to SATA Read buffer
+			get_merge_buf(bank, lsn);
+		}
+		else
+		{
+			if (vsn != NULL)
+        	{
+				flag = 1;
+				if ((sect_offset + remain_sects) < SECTORS_PER_PAGE)
+				{
+					num_sectors_to_read = remain_sects;
+				}
+				else
+				{
+					num_sectors_to_read = SECTORS_PER_PAGE - sect_offset;
+				}
+
+				// 2-2. get data from nand flash to SATA Read buffer
+				nand_page_ptread_to_host(bank,
+                                     vsn / PAGES_PER_BLK,
+                                     vsn % PAGES_PER_BLK,
                                      sect_offset,
                                      num_sectors_to_read);
-        }
-        // The host is requesting to read a logical page that has never been written to.
-        else
-        {
-			UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
+        	}
+	        // The host is requesting to read a logical page that has never been written to.
+    	    else
+			{
+				UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
 
-			#if OPTION_FTL_TEST == 0
-			while (next_read_buf_id == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
-			#endif
+				#if OPTION_FTL_TEST == 0
+				while (next_read_buf_id == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
+				#endif
 
-            // fix bug @ v.1.0.6
+           	// fix bug @ v.1.0.6
             // Send 0xFF...FF to host when the host request to read the sector that has never been written.
             // In old version, for example, if the host request to read unwritten sector 0 after programming in sector 1, Jasmine would send 0x00...00 to host.
             // However, if the host already wrote to sector 1, Jasmine would send 0xFF...FF to host when host request to read sector 0. (ftl_read() in ftl_xxx/ftl.c)
-			mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + sect_offset*BYTES_PER_SECTOR,
-                         0xFFFFFFFF, num_sectors_to_read*BYTES_PER_SECTOR);
+				mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + sect_offset*BYTES_PER_SECTOR,
+                	         0xFFFFFFFF, num_sectors_to_read*BYTES_PER_SECTOR);
 
-            flash_finish();
+	            flash_finish();
 
-			SETREG(BM_STACK_RDSET, next_read_buf_id);	// change bm_read_limit
-			SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
+				SETREG(BM_STACK_RDSET, next_read_buf_id);	// change bm_read_limit
+				SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
 
-			g_ftl_read_buf_id = next_read_buf_id;
-        }
+				g_ftl_read_buf_id = next_read_buf_id;
+        	}
+		}
+
         sect_offset   = 0;
-        remain_sects -= num_sectors_to_read;
-        lpn++;
+		// [MODIFIED] Check 
+        if(flag==1) {remain_sects -= num_sectors_to_read;}
+		else {remain_sects--;}
+        lsn++;
     }
 }
 void ftl_write(UINT32 const lba, UINT32 const num_sectors)
 {
-    UINT32 remain_sects, num_sectors_to_write;
-    UINT32 lpn, sect_offset;
+    UINT32 remain_sects;
+    UINT32 lsn, sect_offset;
 
-    lpn          = lba / SECTORS_PER_PAGE;
-    sect_offset  = lba % SECTORS_PER_PAGE;
+    lsn = lba;
+	sect_offset  = lba % SECTORS_PER_PAGE;
     remain_sects = num_sectors;
 
     while (remain_sects != 0)
@@ -417,53 +448,44 @@ void ftl_write(UINT32 const lba, UINT32 const num_sectors)
          *       check if requested page is included in merge buffer   
          *       (yes) update merge buffer    
          *       (no)  add sector in merge buffer and update psn(physical sector no.)
+		 *		 if merge buffer is full then flush merge buffer and write nand page
          */
-
-        /*
-         * [TODO]
-         *       if merge buffer is full flush merge buffer and write in NAND     
-         */
-
-        if ((sect_offset + remain_sects) < SECTORS_PER_PAGE)
-        {
-            num_sectors_to_write = remain_sects;
-        }
-        else
-        {
-            num_sectors_to_write = SECTORS_PER_PAGE - sect_offset;
-        }
-        // single page write individually
-        write_page(lpn, sect_offset, num_sectors_to_write);
+		
+        // single sector write individually
+        write_page(lsn, sect_offset, 1);
 
         sect_offset   = 0;
-        remain_sects -= num_sectors_to_write;
-        lpn++;
+        remain_sects--;
+        lsn++;
     }
 }
-static void write_page(UINT32 const lpn, UINT32 const sect_offset, UINT32 const num_sectors)
+static void write_page(UINT32 const lsn, UINT32 const sect_offset, UINT32 const num_sectors)
 {
-    CHECK_LPAGE(lpn);
+    // CHECK_LPAGE(lpn); [MODIFIED] NOT NECESSARY
     ASSERT(sect_offset < SECTORS_PER_PAGE);
     ASSERT(num_sectors > 0 && num_sectors <= SECTORS_PER_PAGE);
 
-    UINT32 bank, old_vpn, new_vpn;
-    UINT32 vblock, page_num, page_offset, column_cnt;
+    UINT32 bank, vsn;
+    //UINT32 vblock, page_num, page_offset, column_cnt;
 
-    bank        = get_num_bank(lpn); // page striping
-    page_offset = sect_offset;
-    column_cnt  = num_sectors;
+    bank        = get_num_bank(lsn);
+    vsn 		= get_vsn(lsn);
 
-    // [TODO]: need to invalidate about each vsn in merge buffer
-    // [TODO]: make loop, to check for each lsn.
-    new_vpn  = assign_new_write_vpn(bank);
-    old_vpn  = get_vpn(lpn);
+	// 1. check if corresponding sector is existed in merge buffer
+	if(EXIST_MERGE_BUF(vsn))
+	{
+		// 2-1. update sector data at merge buffer
+		update_merge_buf(bank, lsn);
+	}
+	else
+	{
+		// 2-2. write sector data at merge buffer
+		write_merge_buf(bank,lsn);
+	}
 
-    CHECK_VPAGE (old_vpn);
-    CHECK_VPAGE (new_vpn);
-    ASSERT(old_vpn != new_vpn);
-
-    g_ftl_statistics[bank].page_wcount++;
-
+/*
+    // [TODO]: need to invalidate about each vsn in merge buffer ??
+    // [TODO]: make loop, to check for each lsn. ??
     // if old data already exist,
     if (old_vpn != NULL)
     {
@@ -536,6 +558,9 @@ static void write_page(UINT32 const lpn, UINT32 const sect_offset, UINT32 const 
         page_offset = 0;
         column_cnt  = SECTORS_PER_PAGE;
         // invalid old page (decrease vcount)
+
+		
+	
 	// [TODO] change vcount policy. (find vblock for each sectors in merge buffer and vcount-1)
         set_vcount(bank, vblock, get_vcount(bank, vblock) - 1);
     }
@@ -551,12 +576,18 @@ static void write_page(UINT32 const lpn, UINT32 const sect_offset, UINT32 const 
                                   page_num,
                                   page_offset,
                                   column_cnt);
-    // update metadata
-    // [TODO] : change setting (sector unit)
-    set_lpn(bank, page_num, lpn);
-    set_vpn(lpn, new_vpn);
+
+*/
+    
+	
+	// update metadata
+	// [MODIFID] : After Mapping table finished?
+	// [TODO] : change setting (sector unit)
+    
+	//set_lpn(bank, page_num, lpn);
+    //set_vpn(lpn, new_vpn);
     // [TODO] : change vcount to sector unit, get_vcount(bank, vblock) + SECTORS_PER_PAGE
-    set_vcount(bank, vblock, get_vcount(bank, vblock) + 1);
+    //set_vcount(bank, vblock, get_vcount(bank, vblock) + 1);
 }
 // get vpn from PAGE_MAP
 static UINT32 get_vpn(UINT32 const lpn)
@@ -754,8 +785,8 @@ static void garbage_collection(UINT32 const bank)
 
 static UINT32 get_merge_buf_offset(UINT32 const bank, UINT32 const lsn)
 {
-    UINT32 offset = -1
-    for (int i =0 ; i < g_misc_meta[bank].merge_buf_offset ; i ++){
+    UINT32 offset = -1, i=0;
+    for (i =0 ; i < g_misc_meta[bank].merge_buf_offset ; i ++){
         if (g_misc_meta[bank].merge_buf_lsn_offset[i] == lsn){
             offset= i;
             break;
@@ -776,7 +807,7 @@ static void write_merge_buf(UINT32 const bank, UINT32 const lsn)
                 WR_BUF_PTR(g_ftl_write_buf_id) + sector_offset*BYTES_PER_SECTOR,
                 BYTES_PER_SECTOR );
     // make most valuable bit as 1 (mean such lsn is in merge buffer)
-    set_vsn(get_vsn(lsn) | 0x80000000);
+    set_vsn(lsn, (get_vsn(lsn) | 0x80000000) );
 
     g_misc_meta[bank].merge_buf_offset ++;
 
@@ -801,16 +832,22 @@ static void get_merge_buf(UINT32 const bank, UINT32 const lsn)
 {
 
     UINT32 mb_offset = get_merge_buf_offset(bank, lsn);
-    UINT32 result = 0;
 /*
     [TODO]: check which region of read buffer to fill in.
 */
+/*
+   	[MODIFIED]: return merge buffer to SATA Read buffer
+*/
+	mem_copy(RD_BUF_PTR(g_ftl_read_buf_id), MERGE_BUF_PTR(bank)+mb_offset, BYTES_PER_SECTOR);
+
 }
 
 static void merge_buf_flush(UINT32 bank)
 {
     // old_vsn invalidate & get new_vpn
-    UINT32 new_vpn, old_vsn;
+    UINT32 new_vpn, old_vsn, new_vsn;
+	// For compile complete 
+	UINT32 lsn = 0, vblock=0, page_offset, page_num;
 
     for(int i = 0 ; i < SECTORS_PER_PAGE ; i++)
     {
@@ -822,6 +859,7 @@ static void merge_buf_flush(UINT32 bank)
     new_vpn = assign_new_write_vpn(bank);
     vblock = new_vpn / PAGES_PER_BLK;
     page_num = new_vpn % PAGES_PER_BLK;
+	page_offset = 0; // [MODIFIED] is it right?
 
     // [TODO]: make new function in ftl_wapper.c (write merge buffer's content)
     nand_page_ptprogram_from_host(bank,
@@ -833,7 +871,7 @@ static void merge_buf_flush(UINT32 bank)
     // set each vsn.
     new_vsn = new_vpn * SECTORS_PER_PAGE;
     for(int i = 0 ; i < SECTORS_PER_PAGE;  i++){
-        set_vsn(lpn, new_vsn);
+        set_vsn(lsn, new_vsn);
         new_vsn ++;
     }
     // [TODO] save info to p2l table, p2l table need to be changed

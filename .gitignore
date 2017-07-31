@@ -2,3 +2,7 @@ cscope.out
 tags
 cscope.*
 *.o
+*.d
+*.bin
+*.elf
+*.fim
