@@ -772,8 +772,8 @@ static void write_merge_buf(UINT32 const bank, UINT32 const lsn)
     UINT32 sector_offset = lsn % SECTORS_PER_PAGE;
 
     // copy a specific sector to lash part of the merge buffer
-    mem_copy( MERGE_BUF_PTR(bank) + write_offset*BYTES_PER_SECTOR, 
-                WR_BUF_PTR(g_ftl_write_buf_id) + sector_offset*BYTES_PER_SECTOR, 
+    mem_copy( MERGE_BUF_PTR(bank) + write_offset*BYTES_PER_SECTOR,
+                WR_BUF_PTR(g_ftl_write_buf_id) + sector_offset*BYTES_PER_SECTOR,
                 BYTES_PER_SECTOR );
     // make most valuable bit as 1 (mean such lsn is in merge buffer)
     set_vsn(get_vsn(lsn) | 0x80000000);
@@ -803,7 +803,7 @@ static void get_merge_buf(UINT32 const bank, UINT32 const lsn)
     UINT32 mb_offset = get_merge_buf_offset(bank, lsn);
     UINT32 result = 0;
 /*
-    [TODO]: check which region of read buffer to fill in.  
+    [TODO]: check which region of read buffer to fill in.
 */
 }
 
