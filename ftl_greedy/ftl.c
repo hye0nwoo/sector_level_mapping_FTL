@@ -846,11 +846,13 @@ static void merge_buf_flush(UINT32 bank)
 {
     // old_vsn invalidate & get new_vpn
     UINT32 new_vpn, old_vsn, new_vsn;
-	// For compile complete 
-	UINT32 lsn = 0, vblock=0, page_offset, page_num;
+    // For compile complete 
+    UINT32 lsn = 0, vblock=0, page_offset, page_num, last_offset;
 
-    for(int i = 0 ; i < SECTORS_PER_PAGE ; i++)
+    last_offset = g_misc_meta[bank].merge_buf_offset;
+    for(int i = 0 ; i < last_offset ; i++)
     {
+	lsn = g_misc_meta[bank].merge_buf_lsn_offset[i];
         old_vsn = get_vsn(lsn);
         vblock = old_vsn / SECTORS_PER_BLK;
         set_vcount(bank, vblock, get_vcount(bank, vblock)-1);
@@ -859,7 +861,7 @@ static void merge_buf_flush(UINT32 bank)
     new_vpn = assign_new_write_vpn(bank);
     vblock = new_vpn / PAGES_PER_BLK;
     page_num = new_vpn % PAGES_PER_BLK;
-	page_offset = 0; // [MODIFIED] is it right?
+    page_offset = 0; // [MODIFIED] is it right? yes!
 
     // [TODO]: make new function in ftl_wapper.c (write merge buffer's content)
     nand_page_ptprogram_from_host(bank,
@@ -870,7 +872,8 @@ static void merge_buf_flush(UINT32 bank)
 
     // set each vsn.
     new_vsn = new_vpn * SECTORS_PER_PAGE;
-    for(int i = 0 ; i < SECTORS_PER_PAGE;  i++){
+    for(int i = 0 ; i < last_offset;  i++){
+	lsn = g_misc_meta[bank].merge_buf_lsn_offset[i];
         set_vsn(lsn, new_vsn);
         new_vsn ++;
     }
@@ -879,6 +882,7 @@ static void merge_buf_flush(UINT32 bank)
 
     // set_vcount
     set_vcount(bank, vblock, get_vcount(bank, vblock) + SECTORS_PER_PAGE);
+    g_misc_meta[bank].merge_buf_offset = 0;
 }
 
 // add fin.
