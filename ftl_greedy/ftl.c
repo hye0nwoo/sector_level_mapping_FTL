@@ -136,6 +136,15 @@ static UINT32 get_vpn(UINT32 const lpn);
 static UINT32 get_vt_vblock(UINT32 const bank);
 static UINT32 assign_new_write_vpn(UINT32 const bank);
 
+//========================================
+//  add: Merge Buffer related function
+//========================================
+static UINT32 get_merge_buf_offset(UINT32 const bank, UINT32 const lsn);
+static void write_merge_buf(UINT32 const bank, UINT32 const lsn);
+static void update_merge_buf(UINT32 const bank, UINT32 const lsn);
+static void get_merge_buf(UINT32 const bank, UINT32 const lsn);
+static void merge_buf_flush(UINT32 bank);
+
 static void sanity_check(void)
 {
     UINT32 dram_requirement = RD_BUF_BYTES + WR_BUF_BYTES + COPY_BUF_BYTES + FTL_BUF_BYTES
@@ -738,6 +747,104 @@ static void garbage_collection(UINT32 const bank)
     dec_full_blk_cnt(bank); // decrease full block count
     /* uart_print("garbage_collection end"); */
 }
+
+//========================================
+//  add: Merge Buffer related function
+//========================================
+
+static UINT32 get_merge_buf_offset(UINT32 const bank, UINT32 const lsn)
+{
+    UINT32 offset = -1
+    for (int i =0 ; i < g_misc_meta[bank].merge_buf_offset ; i ++){
+        if (g_misc_meta[bank].merge_buf_lsn_offset[i] == lsn){
+            offset= i;
+            break;
+        }
+    }
+    // if return -1, ERROR (cant find offset in merge buffer)
+    return offset;
+}
+
+static void write_merge_buf(UINT32 const bank, UINT32 const lsn)
+{
+    // variable definition
+    UINT32 write_offset = g_misc_meta[bank].merge_buf_offset ;
+    UINT32 sector_offset = lsn % SECTORS_PER_PAGE;
+
+    // copy a specific sector to lash part of the merge buffer
+    mem_copy( MERGE_BUF_PTR(bank) + write_offset*BYTES_PER_SECTOR, 
+                WR_BUF_PTR(g_ftl_write_buf_id) + sector_offset*BYTES_PER_SECTOR, 
+                BYTES_PER_SECTOR );
+    // make most valuable bit as 1 (mean such lsn is in merge buffer)
+    set_vsn(get_vsn(lsn) | 0x80000000);
+
+    g_misc_meta[bank].merge_buf_offset ++;
+
+    // if merge_buffer is full flush
+    if(g_misc_meta[bank].merge_buf_offset == SECTORS_PER_PAGE){
+        merge_buf_flush(bank);
+        g_misc_meta[bank].merge_buf_offset = 0;
+    }
+}
+
+static void update_merge_buf(UINT32 const bank, UINT32 const lsn)
+{
+    UINT32 mb_offset = get_merge_buf_offset(bank, lsn);
+    UINT32 sector_offset = lsn % SECTORS_PER_PAGE;
+
+    mem_copy( MERGE_BUF_PTR(bank) + (mb_offset * BYTES_PER_SECTOR),
+                WR_BUF_PTR(g_ftl_write_buf_id) + (sector_offset * BYTES_PER_SECTOR),
+                BYTES_PER_SECTOR );
+}
+
+static void get_merge_buf(UINT32 const bank, UINT32 const lsn)
+{
+
+    UINT32 mb_offset = get_merge_buf_offset(bank, lsn);
+    UINT32 result = 0;
+/*
+    [TODO]: check which region of read buffer to fill in.  
+*/
+}
+
+static void merge_buf_flush(UINT32 bank)
+{
+    // old_vsn invalidate & get new_vpn
+    UINT32 new_vpn, old_vsn;
+
+    for(int i = 0 ; i < SECTORS_PER_PAGE ; i++)
+    {
+        old_vsn = get_vsn(lsn);
+        vblock = old_vsn / SECTORS_PER_BLK;
+        set_vcount(bank, vblock, get_vcount(bank, vblock)-1);
+    }
+
+    new_vpn = assign_new_write_vpn(bank);
+    vblock = new_vpn / PAGES_PER_BLK;
+    page_num = new_vpn % PAGES_PER_BLK;
+
+    // [TODO]: make new function in ftl_wapper.c (write merge buffer's content)
+    nand_page_ptprogram_from_host(bank,
+                                       vblock,
+                                       page_num,
+                                       page_offset,
+                                       SECTORS_PER_PAGE);
+
+    // set each vsn.
+    new_vsn = new_vpn * SECTORS_PER_PAGE;
+    for(int i = 0 ; i < SECTORS_PER_PAGE;  i++){
+        set_vsn(lpn, new_vsn);
+        new_vsn ++;
+    }
+    // [TODO] save info to p2l table, p2l table need to be changed
+    //set_lsn(bank, page_num, lsn);
+
+    // set_vcount
+    set_vcount(bank, vblock, get_vcount(bank, vblock) + SECTORS_PER_PAGE);
+}
+
+// add fin.
+
 //-------------------------------------------------------------
 // Victim selection policy: Greedy
 //
@@ -828,6 +935,9 @@ static void init_metadata_sram(void)
         // NOTE: vblock #0,1 don't use for user space
         write_dram_16(VCOUNT_ADDR + ((bank * VBLKS_PER_BANK) + 0) * sizeof(UINT16), VC_MAX);
         write_dram_16(VCOUNT_ADDR + ((bank * VBLKS_PER_BANK) + 1) * sizeof(UINT16), VC_MAX);
+
+        // merge_buf_offset init to 0
+        g_misc_meta[bank].merge_buf_offset = 0;
 
         //----------------------------------------
         // assign misc. block
