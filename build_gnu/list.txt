@@ -292,23 +292,23 @@ END GROUP
                 0x0000000000000000                _start = entry_point
 OUTPUT(firmware.elf elf32-littlearm)
 
-.debug_info     0x0000000000000000     0x63be
- .debug_info    0x0000000000000000     0x18de ftl.o
- .debug_info    0x00000000000018de      0x3ff sata_identify.o
- .debug_info    0x0000000000001cdd      0xafd sata_cmd.o
- .debug_info    0x00000000000027da      0x6a2 sata_isr.o
- .debug_info    0x0000000000002e7c      0x594 sata_main.o
- .debug_info    0x0000000000003410       0xf3 sata_table.o
- .debug_info    0x0000000000003503      0x21a initialize.o
- .debug_info    0x000000000000371d      0xa24 mem_util.o
- .debug_info    0x0000000000004141      0x302 flash.o
- .debug_info    0x0000000000004443      0x7fb flash_wrapper.o
- .debug_info    0x0000000000004c3e      0x4b5 misc.o
- .debug_info    0x00000000000050f3       0x48 uart.o
- .debug_info    0x000000000000513b       0x94 /usr/lib/gcc/arm-none-eabi/4.8.2/libgcc.a(_divsi3.o)
- .debug_info    0x00000000000051cf       0x94 /usr/lib/gcc/arm-none-eabi/4.8.2/libgcc.a(_dvmd_tls.o)
- .debug_info    0x0000000000005263      0x8c7 /usr/lib/gcc/arm-none-eabi/4.8.2/../../../arm-none-eabi/lib/libc.a(lib_a-rand.o)
- .debug_info    0x0000000000005b2a      0x894 /usr/lib/gcc/arm-none-eabi/4.8.2/../../../arm-none-eabi/lib/libc.a(lib_a-impure.o)
+.debug_info     0x0000000000000000     0x63cc
+ .debug_info    0x0000000000000000     0x18ec ftl.o
+ .debug_info    0x00000000000018ec      0x3ff sata_identify.o
+ .debug_info    0x0000000000001ceb      0xafd sata_cmd.o
+ .debug_info    0x00000000000027e8      0x6a2 sata_isr.o
+ .debug_info    0x0000000000002e8a      0x594 sata_main.o
+ .debug_info    0x000000000000341e       0xf3 sata_table.o
+ .debug_info    0x0000000000003511      0x21a initialize.o
+ .debug_info    0x000000000000372b      0xa24 mem_util.o
+ .debug_info    0x000000000000414f      0x302 flash.o
+ .debug_info    0x0000000000004451      0x7fb flash_wrapper.o
+ .debug_info    0x0000000000004c4c      0x4b5 misc.o
+ .debug_info    0x0000000000005101       0x48 uart.o
+ .debug_info    0x0000000000005149       0x94 /usr/lib/gcc/arm-none-eabi/4.8.2/libgcc.a(_divsi3.o)
+ .debug_info    0x00000000000051dd       0x94 /usr/lib/gcc/arm-none-eabi/4.8.2/libgcc.a(_dvmd_tls.o)
+ .debug_info    0x0000000000005271      0x8c7 /usr/lib/gcc/arm-none-eabi/4.8.2/../../../arm-none-eabi/lib/libc.a(lib_a-rand.o)
+ .debug_info    0x0000000000005b38      0x894 /usr/lib/gcc/arm-none-eabi/4.8.2/../../../arm-none-eabi/lib/libc.a(lib_a-impure.o)
 
 .debug_abbrev   0x0000000000000000     0x19e2
  .debug_abbrev  0x0000000000000000      0x3f8 ftl.o
@@ -328,18 +328,18 @@ OUTPUT(firmware.elf elf32-littlearm)
  .debug_abbrev  0x000000000000168a      0x1d8 /usr/lib/gcc/arm-none-eabi/4.8.2/../../../arm-none-eabi/lib/libc.a(lib_a-rand.o)
  .debug_abbrev  0x0000000000001862      0x180 /usr/lib/gcc/arm-none-eabi/4.8.2/../../../arm-none-eabi/lib/libc.a(lib_a-impure.o)
 
-.debug_loc      0x0000000000000000     0x42de
- .debug_loc     0x0000000000000000      0xe83 ftl.o
- .debug_loc     0x0000000000000e83      0x126 sata_identify.o
- .debug_loc     0x0000000000000fa9      0x7b6 sata_cmd.o
- .debug_loc     0x000000000000175f      0x4d6 sata_isr.o
- .debug_loc     0x0000000000001c35      0x146 sata_main.o
- .debug_loc     0x0000000000001d7b       0x1f initialize.o
- .debug_loc     0x0000000000001d9a     0x164d mem_util.o
- .debug_loc     0x00000000000033e7      0x2e5 flash.o
- .debug_loc     0x00000000000036cc      0x962 flash_wrapper.o
- .debug_loc     0x000000000000402e      0x291 misc.o
- .debug_loc     0x00000000000042bf       0x1f /usr/lib/gcc/arm-none-eabi/4.8.2/../../../arm-none-eabi/lib/libc.a(lib_a-rand.o)
+.debug_loc      0x0000000000000000     0x43b9
+ .debug_loc     0x0000000000000000      0xf5e ftl.o
+ .debug_loc     0x0000000000000f5e      0x126 sata_identify.o
+ .debug_loc     0x0000000000001084      0x7b6 sata_cmd.o
+ .debug_loc     0x000000000000183a      0x4d6 sata_isr.o
+ .debug_loc     0x0000000000001d10      0x146 sata_main.o
+ .debug_loc     0x0000000000001e56       0x1f initialize.o
+ .debug_loc     0x0000000000001e75     0x164d mem_util.o
+ .debug_loc     0x00000000000034c2      0x2e5 flash.o
+ .debug_loc     0x00000000000037a7      0x962 flash_wrapper.o
+ .debug_loc     0x0000000000004109      0x291 misc.o
+ .debug_loc     0x000000000000439a       0x1f /usr/lib/gcc/arm-none-eabi/4.8.2/../../../arm-none-eabi/lib/libc.a(lib_a-rand.o)
 
 .debug_aranges  0x0000000000000000      0x1f0
  .debug_aranges
@@ -385,52 +385,52 @@ OUTPUT(firmware.elf elf32-littlearm)
  .debug_ranges  0x0000000000000408       0x50 misc.o
  .debug_ranges  0x0000000000000458       0x18 /usr/lib/gcc/arm-none-eabi/4.8.2/../../../arm-none-eabi/lib/libc.a(lib_a-rand.o)
 
-.debug_line     0x0000000000000000     0x160a
- .debug_line    0x0000000000000000      0x3fc ftl.o
- .debug_line    0x00000000000003fc       0xe8 sata_identify.o
- .debug_line    0x00000000000004e4      0x1c0 sata_cmd.o
- .debug_line    0x00000000000006a4      0x1b0 sata_isr.o
- .debug_line    0x0000000000000854      0x181 sata_main.o
- .debug_line    0x00000000000009d5       0x5b sata_table.o
- .debug_line    0x0000000000000a30      0x135 initialize.o
- .debug_line    0x0000000000000b65      0x188 mem_util.o
- .debug_line    0x0000000000000ced      0x180 flash.o
- .debug_line    0x0000000000000e6d      0x27e flash_wrapper.o
- .debug_line    0x00000000000010eb      0x205 misc.o
- .debug_line    0x00000000000012f0       0x1d uart.o
- .debug_line    0x000000000000130d       0x96 /usr/lib/gcc/arm-none-eabi/4.8.2/libgcc.a(_divsi3.o)
- .debug_line    0x00000000000013a3       0x61 /usr/lib/gcc/arm-none-eabi/4.8.2/libgcc.a(_dvmd_tls.o)
- .debug_line    0x0000000000001404      0x133 /usr/lib/gcc/arm-none-eabi/4.8.2/../../../arm-none-eabi/lib/libc.a(lib_a-rand.o)
- .debug_line    0x0000000000001537       0xd3 /usr/lib/gcc/arm-none-eabi/4.8.2/../../../arm-none-eabi/lib/libc.a(lib_a-impure.o)
+.debug_line     0x0000000000000000     0x160d
+ .debug_line    0x0000000000000000      0x3ff ftl.o
+ .debug_line    0x00000000000003ff       0xe8 sata_identify.o
+ .debug_line    0x00000000000004e7      0x1c0 sata_cmd.o
+ .debug_line    0x00000000000006a7      0x1b0 sata_isr.o
+ .debug_line    0x0000000000000857      0x181 sata_main.o
+ .debug_line    0x00000000000009d8       0x5b sata_table.o
+ .debug_line    0x0000000000000a33      0x135 initialize.o
+ .debug_line    0x0000000000000b68      0x188 mem_util.o
+ .debug_line    0x0000000000000cf0      0x180 flash.o
+ .debug_line    0x0000000000000e70      0x27e flash_wrapper.o
+ .debug_line    0x00000000000010ee      0x205 misc.o
+ .debug_line    0x00000000000012f3       0x1d uart.o
+ .debug_line    0x0000000000001310       0x96 /usr/lib/gcc/arm-none-eabi/4.8.2/libgcc.a(_divsi3.o)
+ .debug_line    0x00000000000013a6       0x61 /usr/lib/gcc/arm-none-eabi/4.8.2/libgcc.a(_dvmd_tls.o)
+ .debug_line    0x0000000000001407      0x133 /usr/lib/gcc/arm-none-eabi/4.8.2/../../../arm-none-eabi/lib/libc.a(lib_a-rand.o)
+ .debug_line    0x000000000000153a       0xd3 /usr/lib/gcc/arm-none-eabi/4.8.2/../../../arm-none-eabi/lib/libc.a(lib_a-impure.o)
 
-.debug_str      0x0000000000000000     0x1bff
- .debug_str     0x0000000000000000      0x673 ftl.o
-                                        0x723 (size before relaxing)
- .debug_str     0x0000000000000673      0x1bb sata_identify.o
-                                        0x2d2 (size before relaxing)
- .debug_str     0x000000000000082e      0x868 sata_cmd.o
-                                        0xa8e (size before relaxing)
- .debug_str     0x0000000000001096      0x105 sata_isr.o
-                                        0x7b7 (size before relaxing)
- .debug_str     0x000000000000119b      0x102 sata_main.o
-                                        0x36d (size before relaxing)
- .debug_str     0x000000000000129d       0x15 sata_table.o
-                                        0x146 (size before relaxing)
- .debug_str     0x00000000000012b2       0x74 initialize.o
-                                        0x1b9 (size before relaxing)
- .debug_str     0x0000000000001326      0x12b mem_util.o
-                                        0x302 (size before relaxing)
- .debug_str     0x0000000000001451       0xa9 flash.o
-                                        0x1ee (size before relaxing)
- .debug_str     0x00000000000014fa      0x10c flash_wrapper.o
-                                        0x310 (size before relaxing)
- .debug_str     0x0000000000001606      0x126 misc.o
-                                        0x2d0 (size before relaxing)
- .debug_str     0x000000000000172c       0x15 uart.o
-                                         0xec (size before relaxing)
- .debug_str     0x0000000000001741      0x434 /usr/lib/gcc/arm-none-eabi/4.8.2/../../../arm-none-eabi/lib/libc.a(lib_a-rand.o)
+.debug_str      0x0000000000000000     0x1c00
+ .debug_str     0x0000000000000000      0x674 ftl.o
+                                        0x724 (size before relaxing)
+ .debug_str     0x0000000000000674      0x1bb sata_identify.o
+                                        0x2c7 (size before relaxing)
+ .debug_str     0x000000000000082f      0x868 sata_cmd.o
+                                        0xa83 (size before relaxing)
+ .debug_str     0x0000000000001097      0x105 sata_isr.o
+                                        0x7ac (size before relaxing)
+ .debug_str     0x000000000000119c      0x102 sata_main.o
+                                        0x362 (size before relaxing)
+ .debug_str     0x000000000000129e       0x15 sata_table.o
+                                        0x13b (size before relaxing)
+ .debug_str     0x00000000000012b3       0x74 initialize.o
+                                        0x1ae (size before relaxing)
+ .debug_str     0x0000000000001327      0x12b mem_util.o
+                                        0x2f7 (size before relaxing)
+ .debug_str     0x0000000000001452       0xa9 flash.o
+                                        0x1e3 (size before relaxing)
+ .debug_str     0x00000000000014fb      0x10c flash_wrapper.o
+                                        0x305 (size before relaxing)
+ .debug_str     0x0000000000001607      0x126 misc.o
+                                        0x2c5 (size before relaxing)
+ .debug_str     0x000000000000172d       0x15 uart.o
+                                         0xe1 (size before relaxing)
+ .debug_str     0x0000000000001742      0x434 /usr/lib/gcc/arm-none-eabi/4.8.2/../../../arm-none-eabi/lib/libc.a(lib_a-rand.o)
                                         0x52b (size before relaxing)
- .debug_str     0x0000000000001b75       0x8a /usr/lib/gcc/arm-none-eabi/4.8.2/../../../arm-none-eabi/lib/libc.a(lib_a-impure.o)
+ .debug_str     0x0000000000001b76       0x8a /usr/lib/gcc/arm-none-eabi/4.8.2/../../../arm-none-eabi/lib/libc.a(lib_a-impure.o)
                                         0x534 (size before relaxing)
 
 .comment        0x0000000000000000       0x1f
