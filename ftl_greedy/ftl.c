@@ -349,85 +349,72 @@ void ftl_test_write(UINT32 const lba, UINT32 const num_sectors)
 }
 void ftl_read(UINT32 const lba, UINT32 const num_sectors)
 {
-    UINT32 remain_sects, num_sectors_to_read=0;
-	UINT32 lsn, sect_offset;
+    UINT32 remain_sects, num_sectors_to_read=1; // read by 1 sector
+    UINT32 lsn, sect_offset;
     UINT32 bank, vsn;
-	UINT32 flag = 0;
 
-	lsn = lba;  
-	remain_sects = num_sectors;
+    lsn = lba;  
+    remain_sects = num_sectors;
 
     while (remain_sects != 0)
     {
         /*
          * [TODO] read requested sectors. (unit: sector)
-		 *			0.	 assign new variable [@vsn] [@lsn] 
+	    *	          0.   assign new variable [@vsn] [@lsn] 
          *          1.   check if corresponding sector is included in merge buffer 
          *          2-1. if it is in merge buffer read corresponding buffer region
          *          2-1. get_vpn(lpn), access corresponding vpn and read data requested
          */
 
-		flag = 0; // [MODIFIED] Have to discuss with
        	bank = get_num_bank(lsn); // page striping
-        vsn  = get_vpn(lsn);
-		// CHECK_VPAGE(vpn); [MODIFIED] NOT NECESSARY
+        vsn  = get_vsn(lsn);
+	// CHECK_VPAGE(vpn); [MODIFIED] NOT NECESSARY
 
-		// 1. check if corresponding sector is existed in merge buffer
-		if(EXIST_MERGE_BUF(vsn))
-		{
-			// 2-1. get data from merge buffer to SATA Read buffer
-			get_merge_buf(bank, lsn);
-		}
-		else
-		{
-			if (vsn != NULL)
+	// 1. check if corresponding sector is existed in merge buffer
+	if(EXIST_MERGE_BUF(vsn))
+	{
+		// 2-1. get data from merge buffer to SATA Read buffer
+		get_merge_buf(bank, lsn);
+	}
+	else
+	{
+		if (vsn != NULL)
         	{
-				flag = 1;
-				if ((sect_offset + remain_sects) < SECTORS_PER_PAGE)
-				{
-					num_sectors_to_read = remain_sects;
-				}
-				else
-				{
-					num_sectors_to_read = SECTORS_PER_PAGE - sect_offset;
-				}
-
-				// 2-2. get data from nand flash to SATA Read buffer
-				nand_page_ptread_to_host(bank,
+			sect_offset = vsn % SECTORS_PER_PAGE
+			// 2-2. get data from nand flash to SATA Read buffer read by 1 sector
+			nand_page_ptread_to_host(bank,
                                      vsn / PAGES_PER_BLK,
                                      vsn % PAGES_PER_BLK,
                                      sect_offset,
                                      num_sectors_to_read);
         	}
 	        // The host is requesting to read a logical page that has never been written to.
-    	    else
-			{
-				UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
+    	    	else
+		{
+			UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
 
-				#if OPTION_FTL_TEST == 0
-				while (next_read_buf_id == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
-				#endif
+			#if OPTION_FTL_TEST == 0
+			while (next_read_buf_id == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
+			#endif
 
-           	// fix bug @ v.1.0.6
+           // fix bug @ v.1.0.6
             // Send 0xFF...FF to host when the host request to read the sector that has never been written.
             // In old version, for example, if the host request to read unwritten sector 0 after programming in sector 1, Jasmine would send 0x00...00 to host.
             // However, if the host already wrote to sector 1, Jasmine would send 0xFF...FF to host when host request to read sector 0. (ftl_read() in ftl_xxx/ftl.c)
-				mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + sect_offset*BYTES_PER_SECTOR,
+		mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + sect_offset*BYTES_PER_SECTOR,
                 	         0xFFFFFFFF, num_sectors_to_read*BYTES_PER_SECTOR);
 
 	            flash_finish();
 
-				SETREG(BM_STACK_RDSET, next_read_buf_id);	// change bm_read_limit
-				SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
+			SETREG(BM_STACK_RDSET, next_read_buf_id);	// change bm_read_limit
+			SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
 
-				g_ftl_read_buf_id = next_read_buf_id;
-        	}
-		}
+			g_ftl_read_buf_id = next_read_buf_id;
+       		}
+	}
 
-        sect_offset   = 0;
-		// [MODIFIED] Check 
-        if(flag==1) {remain_sects -= num_sectors_to_read;}
-		else {remain_sects--;}
+        sect_offset= 0;
+	remain_sects--;
         lsn++;
     }
 }
