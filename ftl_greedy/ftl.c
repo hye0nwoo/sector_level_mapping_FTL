@@ -349,7 +349,7 @@ void ftl_test_write(UINT32 const lba, UINT32 const num_sectors)
 }
 void ftl_read(UINT32 const lba, UINT32 const num_sectors)
 {
-    UINT32 remain_sects, num_sectors_to_read=0;
+    UINT32 remain_sects, num_sectors_to_read=1; // read by 1 sector
 	UINT32 lsn, sect_offset;
     UINT32 bank, vsn;
 	UINT32 flag = 0;
@@ -367,7 +367,6 @@ void ftl_read(UINT32 const lba, UINT32 const num_sectors)
          *          2-1. get_vpn(lpn), access corresponding vpn and read data requested
          */
 
-		flag = 0; // [MODIFIED] Have to discuss with
        	bank = get_num_bank(lsn); // page striping
         vsn  = get_vpn(lsn);
 		// CHECK_VPAGE(vpn); [MODIFIED] NOT NECESSARY
@@ -382,17 +381,7 @@ void ftl_read(UINT32 const lba, UINT32 const num_sectors)
 		{
 			if (vsn != NULL)
         	{
-				flag = 1;
-				if ((sect_offset + remain_sects) < SECTORS_PER_PAGE)
-				{
-					num_sectors_to_read = remain_sects;
-				}
-				else
-				{
-					num_sectors_to_read = SECTORS_PER_PAGE - sect_offset;
-				}
-
-				// 2-2. get data from nand flash to SATA Read buffer
+				// 2-2. get data from nand flash to SATA Read buffer read by 1 sector
 				nand_page_ptread_to_host(bank,
                                      vsn / PAGES_PER_BLK,
                                      vsn % PAGES_PER_BLK,
@@ -425,9 +414,7 @@ void ftl_read(UINT32 const lba, UINT32 const num_sectors)
 		}
 
         sect_offset   = 0;
-		// [MODIFIED] Check 
-        if(flag==1) {remain_sects -= num_sectors_to_read;}
-		else {remain_sects--;}
+		remain_sects--;
         lsn++;
     }
 }
