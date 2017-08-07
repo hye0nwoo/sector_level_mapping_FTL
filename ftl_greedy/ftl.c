@@ -349,7 +349,7 @@ void ftl_test_write(UINT32 const lba, UINT32 const num_sectors)
 }
 void ftl_read(UINT32 const lba, UINT32 const num_sectors)
 {
-    UINT32 remain_sects, num_sectors_to_read=1; // read by 1 sector
+    UINT32 remain_sects, num_sectors_to_read = 1; // read by 1 sector
     UINT32 lsn, sect_offset;
     UINT32 bank, vsn;
 
@@ -366,21 +366,24 @@ void ftl_read(UINT32 const lba, UINT32 const num_sectors)
          *          2-1. get_vpn(lpn), access corresponding vpn and read data requested
          */
 
-       	bank = get_num_bank(lsn); // page striping
-        vsn  = get_vsn(lsn);
+         bank = get_num_bank(lsn); // page striping
+         vsn  = get_vsn(lsn);
+         sect_offset = vsn % SECTORS_PER_PAGE;
 	// CHECK_VPAGE(vpn); [MODIFIED] NOT NECESSARY
 
 	// 1. check if corresponding sector is existed in merge buffer
 	if(EXIST_MERGE_BUF(vsn))
 	{
 		// 2-1. get data from merge buffer to SATA Read buffer
-		get_merge_buf(bank, lsn);
+          get_merge_buf(bank, lsn);
+          if( sect_offset == SECTORS_PER_PAGE - 1 ) {
+            g_ftl_read_buf_id = (g_ftl_read_buf_id + 1 ) % NUM_RD_BUFFERS;
+          }
 	}
 	else
 	{
 		if (vsn != NULL)
         	{
-			sect_offset = vsn % SECTORS_PER_PAGE
 			// 2-2. get data from nand flash to SATA Read buffer read by 1 sector
 			nand_page_ptread_to_host(bank,
                                      vsn / PAGES_PER_BLK,
@@ -410,21 +413,21 @@ void ftl_read(UINT32 const lba, UINT32 const num_sectors)
 			SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
 
 			g_ftl_read_buf_id = next_read_buf_id;
-       		}
+       	}
 	}
 
         sect_offset= 0;
-	remain_sects--;
+	   remain_sects--;
         lsn++;
     }
 }
 void ftl_write(UINT32 const lba, UINT32 const num_sectors)
 {
-    UINT32 remain_sects;
-    UINT32 lsn, sect_offset;
+    UINT32 remain_sects, num_sectors_to_write = 1; // read by 1 sector
+    UINT32 lsn;
+    UINT32 bank, vsn;
 
     lsn = lba;
-	sect_offset  = lba % SECTORS_PER_PAGE;
     remain_sects = num_sectors;
 
     while (remain_sects != 0)
@@ -438,15 +441,22 @@ void ftl_write(UINT32 const lba, UINT32 const num_sectors)
 		 *		 if merge buffer is full then flush merge buffer and write nand page
          */
 		
+        bank = get_lsn_bank(lsn);
+        vsn = get_vsn(lsn);
         // single sector write individually
-        write_page(lsn, sect_offset, 1);
+        //write_page(lsn, sect_offset, 1);
 
-        sect_offset   = 0;
+        if(EXIST_MERGE_BUF(vsn)){
+            update_merge_buf(bank, lsn);
+        } else {
+            write_merge_buf(bank, lsn);
+        }
+
         remain_sects--;
         lsn++;
     }
 }
-static void write_page(UINT32 const lsn, UINT32 const sect_offset, UINT32 const num_sectors)
+/*static void write_page(UINT32 const lsn, UINT32 const sect_offset, UINT32 const num_sectors)
 {
     // CHECK_LPAGE(lpn); [MODIFIED] NOT NECESSARY
     ASSERT(sect_offset < SECTORS_PER_PAGE);
@@ -469,7 +479,7 @@ static void write_page(UINT32 const lsn, UINT32 const sect_offset, UINT32 const 
 		// 2-2. write sector data at merge buffer
 		write_merge_buf(bank,lsn);
 	}
-
+*/
 /*
     // [TODO]: need to invalidate about each vsn in merge buffer ??
     // [TODO]: make loop, to check for each lsn. ??
@@ -575,7 +585,7 @@ static void write_page(UINT32 const lsn, UINT32 const sect_offset, UINT32 const 
     //set_vpn(lpn, new_vpn);
     // [TODO] : change vcount to sector unit, get_vcount(bank, vblock) + SECTORS_PER_PAGE
     //set_vcount(bank, vblock, get_vcount(bank, vblock) + 1);
-}
+//}
 // get vpn from PAGE_MAP
 static UINT32 get_vpn(UINT32 const lpn)
 {
@@ -819,13 +829,14 @@ static void get_merge_buf(UINT32 const bank, UINT32 const lsn)
 {
 
     UINT32 mb_offset = get_merge_buf_offset(bank, lsn);
+    UINT32 offset = lsn % SECTORS_PER_PAGE;
 /*
     [TODO]: check which region of read buffer to fill in.
 */
 /*
    	[MODIFIED]: return merge buffer to SATA Read buffer
 */
-	mem_copy(RD_BUF_PTR(g_ftl_read_buf_id), MERGE_BUF_PTR(bank)+mb_offset, BYTES_PER_SECTOR);
+	mem_copy(RD_BUF_PTR(g_ftl_read_buf_id) + offset * BYTES_PER_SECTOR , MERGE_BUF_PTR(bank)+mb_offset, BYTES_PER_SECTOR);
 
 }
 
