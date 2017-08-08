@@ -59,6 +59,7 @@ typedef struct _misc_metadata
     UINT32 cur_mapblk_vpn[MAPBLKS_PER_BANK]; // current write vpn for logging the age mapping info.
     UINT32 gc_vblock; // vblock number for garbage collection
     UINT32 free_blk_cnt; // total number of free block count
+    // [TODO] change to SETORS_PER_BLK
     UINT32 lpn_list_of_cur_vblock[PAGES_PER_BLK]; // logging lpn list of current write vblock for GC
     UINT32 merge_buf_offset;  // how many merge buffer is filled
     UINT32 merge_buf_lsn_offset[SECTORS_PER_PAGE]; // lsn managing table
@@ -101,7 +102,7 @@ UINT32 				  g_ftl_write_buf_id;
 #define set_new_write_vpn(bank, vpn)  (g_misc_meta[bank].cur_write_vpn = vpn)
 #define get_gc_vblock(bank)           (g_misc_meta[bank].gc_vblock)
 #define set_gc_vblock(bank, vblock)   (g_misc_meta[bank].gc_vblock = vblock)
-// [TODO]: change p2l table reference. 
+// [TODO]: change p2l table reference. set_lsn, get_lsn, 
 #define set_lpn(bank, page_num, lpn)  (g_misc_meta[bank].lpn_list_of_cur_vblock[page_num] = lpn)
 #define get_lpn(bank, page_num)       (g_misc_meta[bank].lpn_list_of_cur_vblock[page_num])
 #define get_miscblk_vpn(bank)         (g_misc_meta[bank].cur_miscblk_vpn)
@@ -808,7 +809,8 @@ static void write_merge_buf(UINT32 const bank, UINT32 const lsn)
 
     g_misc_meta[bank].merge_buf_offset ++;
 
-    // if merge_buffer is full flush
+    // if merge_buffer is full flush 
+    // if add p2l to last page in block offset max --> SECTORS_PER_PAGE - 1 or -2
     if(g_misc_meta[bank].merge_buf_offset == SECTORS_PER_PAGE){
         merge_buf_flush(bank);
         g_misc_meta[bank].merge_buf_offset = 0;
@@ -871,13 +873,13 @@ static void merge_buf_flush(UINT32 bank)
     // set each vsn.
     new_vsn = new_vpn * SECTORS_PER_PAGE;
     for(int i = 0 ; i < last_offset;  i++){
-	lsn = g_misc_meta[bank].merge_buf_lsn_offset[i];
+	   lsn = g_misc_meta[bank].merge_buf_lsn_offset[i];
         set_vsn(lsn, new_vsn);
+        // [TODO] save info to p2l table, p2l table need to be changed
+        //set_lsn(bank, new_vsn % SECTORS_PER_BLK ,lsn);
         new_vsn ++;
     }
-    // [TODO] save info to p2l table, p2l table need to be changed
-    //set_lsn(bank, page_num, lsn);
-
+    
     // set_vcount
     set_vcount(bank, vblock, get_vcount(bank, vblock) + SECTORS_PER_PAGE);
     g_misc_meta[bank].merge_buf_offset = 0;
