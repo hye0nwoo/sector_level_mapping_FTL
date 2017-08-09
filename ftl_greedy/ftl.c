@@ -514,6 +514,7 @@ static void write_page(UINT32 const lpn, UINT32 const sect_offset, UINT32 const 
     set_vcount(bank, vblock, get_vcount(bank, vblock) + 1);
 }
 // get vpn from PAGE_MAP
+// ####
 static UINT32 get_vpn(UINT32 const lpn)
 {
     CHECK_LPAGE(lpn);
