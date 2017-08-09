@@ -529,11 +529,11 @@ static UINT32 find_free_page(){
 
 static UINT32 find_caching_addr(UINT32 const lsn)
 {
-    UINT32 cache_table_index,min_index,free_index;
+    UINT32 cache_table_index,min_index,free_index,find_index;
     UINT16 mapping_table_addr;
     UINT32 tmp_lpn;
     UINT32 addr;
-    UINT8 min_assess = 256, tmp_assess, is_full==1, is_find = 0;
+    UINT8 min_assess = 256, tmp_assess, is_full==1, is_find = 0, find_assess;
     UINT32 min_assess_lpn;
 
     for (cache_table_index = 0; cache_table_index < NUM_CACHE_PAGES; cache_table_index++) {
@@ -554,6 +554,8 @@ static UINT32 find_caching_addr(UINT32 const lsn)
         }else if(tmp_lpn == lsn/SECTORS_PER_PAGE){
             //EXIST
             mapping_table_addr = read_dram_16(CACHE_LRU_ADDR + cache_table_index * sizeof(UINT64));
+            find_assess = tmp_assess;
+            find_index = cache_table_index;
             is_find = 1;
         }
     }
@@ -561,13 +563,15 @@ static UINT32 find_caching_addr(UINT32 const lsn)
     if(is_find){
         //EXIST
         addr = mapping_table_addr;
+        //UPDATE TEMP in CACHE LRU
+        write_dram_8(CACHE_LRU_ADDR + find_index * sizeof(UINT64) + sizeof(UINT16),tmp_assess+1);
     }else{
         if(is_full){
             //NOT EXIST in CACHE LRU TABLE & FULL
             // Find Victim page in CACHE LRU == minimum assess
             // Flush victim vsn information into nand
             flush_page(min_assess_lpn);                 // Flush page(corresponding to min_lpn) to NAND
-            
+
             addr = read_dram_16(CACHE_LRU_ADDR + min_index * sizeof(UINT64));
             write_dram_32(addr, NULL);
 
