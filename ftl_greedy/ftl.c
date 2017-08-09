@@ -564,7 +564,7 @@ static UINT32 find_caching_addr(UINT32 const lsn)
         //EXIST
         addr = mapping_table_addr;
         //UPDATE TEMP in CACHE LRU
-        write_dram_8(CACHE_LRU_ADDR + find_index * sizeof(UINT64) + sizeof(UINT16),tmp_assess+1);
+        write_dram_8(CACHE_LRU_ADDR + find_index * sizeof(UINT64) + sizeof(UINT16),find_assess+1);
     }else{
         if(is_full){
             //NOT EXIST in CACHE LRU TABLE & FULL
