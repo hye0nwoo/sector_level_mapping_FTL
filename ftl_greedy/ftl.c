@@ -513,21 +513,106 @@ static void write_page(UINT32 const lpn, UINT32 const sect_offset, UINT32 const 
     set_vpn(lpn, new_vpn);
     set_vcount(bank, vblock, get_vcount(bank, vblock) + 1);
 }
-// get vpn from PAGE_MAP
+
 // ####
-static UINT32 get_vpn(UINT32 const lpn)
+// Fine Free Page in CACHE MAPPING TABLE, then return CACHE MAP ADDR
+static UINT32 find_free_page(){
+    UINT32 cache_map_index;
+    for(cache_map_index = 0; cache_map_index < NUM_CACHE_PAGES; cache_map_index++){
+        if(read_dram_32(CACHE_MAP_ADDR + cache_map_index * sizeof(UINT32) * SECTORS_PER_PAGE) == NULL){
+            break;
+        }
+    }
+    return CACHE_MAP_ADDR + cache_map_index * sizeof(UINT32) * SECTORS_PER_PAGE;
+}
+
+
+static UINT32 find_caching_addr(UINT32 const lsn)
 {
-    CHECK_LPAGE(lpn);
-    return read_dram_32(PAGE_MAP_ADDR + lpn * sizeof(UINT32));
+    UINT32 cache_table_index,min_index,free_index;
+    UINT16 mapping_table_addr;
+    UINT32 tmp_lpn;
+    UINT32 addr;
+    UINT8 min_assess = 256, tmp_assess, is_full==1, is_find = 0;
+    UINT32 min_assess_lpn;
+
+    for (cache_table_index = 0; cache_table_index < NUM_CACHE_PAGES; cache_table_index++) {
+        //  | DRAM location | TEMP | LSN |
+        //  Get lpn of Cach LRU list
+        tmp_assess = read_dram_8(CACHE_LRU_ADDR + cache_table_index * sizeof(UINT64) + sizeof(UINT16));
+        tmp_lpn = read_dram_32(CACHE_LRU_ADDR + cache_table_index * sizeof(UINT64) + sizeof(UINT16) + sizeof(UINT8));
+
+        // Find minimum assess count in CACHE LRU
+        if(temp assess != NULL && tmp_assess < min_assess){
+            min_assess = tmp_assess;
+            min_assess_lpn = tmp_lpn;
+            min_index = cache_table_index;      
+        }
+        if(tmp_lpn == NULL){
+            is_full = 0;
+            free_index = cache_table_index;
+        }else if(tmp_lpn == lsn/SECTORS_PER_PAGE){
+            //EXIST
+            mapping_table_addr = read_dram_16(CACHE_LRU_ADDR + cache_table_index * sizeof(UINT64));
+            is_find = 1;
+        }
+    }
+
+    if(is_find){
+        //EXIST
+        addr = mapping_table_addr;
+    }else{
+        if(is_full){
+            //NOT EXIST in CACHE LRU TABLE & FULL
+            // Find Victim page in CACHE LRU == minimum assess
+            // Flush victim vsn information into nand
+            flush_page(min_assess_lpn);                 // Flush page(corresponding to min_lpn) to NAND 
+
+            // Update TEMP, LPN part in CACHE LRU
+            write_dram_8(CACHE_LRU_ADDR + min_index * sizeof(UINT64) + sizeof(UINT16),1);
+            write_dram_32(CACHE_LRU_ADDR + min_index * sizeof(UINT64) + sizeof(UINT16) + sizeof(UINT8),lsn/SECTORS_PER_PAGE);
+
+            // return mapping table addr
+            addr = read_dram_16(CACHE_LRU_ADDR + min_index * sizeof(UINT64));
+            // Current Free Page in CACHE MAP TABLE
+            CUR_CACHE_MAP_ADDR = addr;
+        }else{
+            //NOT EXIST & NOT FULL
+            // FIND CACHE MAPPING TABLE FREE SPACE
+            // INSERT DRAM loc, TEMP, LSN info in CACHE LRU
+            write_dram_16(CACHE_LRU_ADDR + free_index * sizeof(UINT64), CUR_CACHE_MAP_ADDR);
+            write_dram_8(CACHE_LRU_ADDR + free_index * sizeof(UINT64) + sizeof(UINT16),1);
+            write_dram_32(CACHE_LRU_ADDR + free_index * sizeof(UINT64) + sizeof(UINT16) + sizeof(UINT8),lsn/SECTORS_PER_PAGE);
+            // return DRAM loc
+            addr = CACHE_LRU_ADDR;
+            CACHE_LRU_ADDR = find_free_page();
+        }
+    }
+
+    return  addr;
+}
+
+// get vpn from PAGE_MAP
+static UINT32 get_vsn(UINT32 const lsn)
+{
+    //CHECK_LPAGE(lpn);
+    UINT32 addr;
+    addr = CACHE_MAP_ADDR + find_caching_addr(bank);
+
+    return read_dram_32(map_addr + (lsn % SECTORS_PER_PAGE) * sizeof(UINT32));
 }
 // set vpn to PAGE_MAP
-static void set_vpn(UINT32 const lpn, UINT32 const vpn)
+static void set_vsn(UINT32 const lsn, UINT32 const vsn)
 {
-    CHECK_LPAGE(lpn);
-    ASSERT(vpn >= (META_BLKS_PER_BANK * PAGES_PER_BLK) && vpn < (VBLKS_PER_BANK * PAGES_PER_BLK));
+    //CHECK_LPAGE(lpn);
+    //ASSERT(vpn >= (META_BLKS_PER_BANK * PAGES_PER_BLK) && vpn < (VBLKS_PER_BANK * PAGES_PER_BLK));
+    UINT32 addr;
+    addr = CACHE_MAP_ADDR + find_caching_addr(bank);
 
-    write_dram_32(PAGE_MAP_ADDR + lpn * sizeof(UINT32), vpn);
+    write_dram_32(addr + (lsn % SECTORS_PER_PAGE) * sizeof(UINT32), vsn);
 }
+
+
 // get valid page count of vblock
 static UINT32 get_vcount(UINT32 const bank, UINT32 const vblock)
 {
@@ -737,6 +822,7 @@ static void format(void)
     // initialize DRAM metadata
     //----------------------------------------
     mem_set_dram(CACHE_MAP_ADDR, NULL, CACHE_MAP_BYTES);
+    mem_set_dram(CACHE_LRU_ADDR, NULL, CACHE_LRU_BYTES);
     mem_set_dram(VCOUNT_ADDR, NULL, VCOUNT_BYTES);
 
     //----------------------------------------
