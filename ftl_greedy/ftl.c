@@ -566,14 +566,15 @@ static UINT32 find_caching_addr(UINT32 const lsn)
             //NOT EXIST in CACHE LRU TABLE & FULL
             // Find Victim page in CACHE LRU == minimum assess
             // Flush victim vsn information into nand
-            flush_page(min_assess_lpn);                 // Flush page(corresponding to min_lpn) to NAND 
+            flush_page(min_assess_lpn);                 // Flush page(corresponding to min_lpn) to NAND
+            
+            addr = read_dram_16(CACHE_LRU_ADDR + min_index * sizeof(UINT64));
+            write_dram_32(addr, NULL);
 
             // Update TEMP, LPN part in CACHE LRU
             write_dram_8(CACHE_LRU_ADDR + min_index * sizeof(UINT64) + sizeof(UINT16),1);
             write_dram_32(CACHE_LRU_ADDR + min_index * sizeof(UINT64) + sizeof(UINT16) + sizeof(UINT8),lsn/SECTORS_PER_PAGE);
 
-            // return mapping table addr
-            addr = read_dram_16(CACHE_LRU_ADDR + min_index * sizeof(UINT64));
             // Current Free Page in CACHE MAP TABLE
             CUR_CACHE_MAP_ADDR = addr;
         }else{
