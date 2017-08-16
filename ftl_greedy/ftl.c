@@ -59,8 +59,11 @@ typedef struct _misc_metadata
     UINT32 cur_mapblk_vpn[MAPBLKS_PER_BANK]; // current write vpn for logging the age mapping info.
     UINT32 gc_vblock; // vblock number for garbage collection
     UINT32 free_blk_cnt; // total number of free block count
-    // [TODO] change to SETORS_PER_BLK, for Block unit setting, not used in Page unit setting.
+    // for Block unit setting, not used in Page unit setting.
     UINT32 lpn_list_of_cur_vblock[SECTORS_PER_BLK]; // logging lpn list of current write vblock for GC
+    // for Page unit setting [start]
+    //UINT32 lsn_list_of_cur_vpage[SECTORS_PER_PAGE]; // p2l list metadata need for GC
+    // [end]
     UINT32 merge_buf_offset;  // how many merge buffer is filled
     UINT32 merge_buf_lsn_offset[SECTORS_PER_PAGE]; // lsn managing table
 }misc_metadata; // per bank
@@ -649,13 +652,14 @@ static UINT32 assign_new_write_vpn(UINT32 const bank)
         // then, because of the flash controller limitation
         // (prohibit accessing a spare area (i.e. OOB)),
         // thus, we persistenly write a lpn list into last page of vblock.
-        mem_copy(FTL_BUF(bank), g_misc_meta[bank].lpn_list_of_cur_vblock, sizeof(UINT32) * PAGES_PER_BLK);
+        // for Block unit setting [start], not used when managing Page unit p2l list
+        mem_copy(FTL_BUF(bank), g_misc_meta[bank].lpn_list_of_cur_vblock, sizeof(UINT32) * SECTORS_PER_BLK);
         // fix minor bug
         nand_page_ptprogram(bank, vblock, PAGES_PER_BLK - 1, 0,
                             ((sizeof(UINT32) * PAGES_PER_BLK + BYTES_PER_SECTOR - 1 ) / BYTES_PER_SECTOR), FTL_BUF(bank));
 
-        mem_set_sram(g_misc_meta[bank].lpn_list_of_cur_vblock, 0x00000000, sizeof(UINT32) * PAGES_PER_BLK);
-
+        mem_set_sram(g_misc_meta[bank].lpn_list_of_cur_vblock, 0x00000000, sizeof(UINT32) * SECTORS_PER_BLK);
+        //[end]
         inc_full_blk_cnt(bank);
 
         // do garbage collection if necessary
@@ -850,19 +854,6 @@ static void get_merge_buf(UINT32 const bank, UINT32 const lsn)
 
 }
 
-// for Page unit p2l list setting.
-static void set_p2l_list(UNIT32 bank){
-
-    UINT32 lpn = 0;
-
-    for(int i = 0 ; i < last_offset ; i++) {
-        lsn = g_misc_meta[bank].merge_buf_lsn_offset[i];
-        mem_copy( MERGE_BUF_PTR(bank) + (BYTES_PER_SECTOR * (SECTORS_PER_PAGE - 1 )) + (sizeof(UINT32) * i),
-                    &lsn, 
-                    sizeof(UINT32))
-    }
-}
-
 static void merge_buf_flush(UINT32 bank)
 {
     // old_vsn invalidate & get new_vpn
@@ -873,7 +864,7 @@ static void merge_buf_flush(UINT32 bank)
     last_offset = g_misc_meta[bank].merge_buf_offset;
     for(int i = 0 ; i < last_offset ; i++)
     {
-	lsn = g_misc_meta[bank].merge_buf_lsn_offset[i];
+	   lsn = g_misc_meta[bank].merge_buf_lsn_offset[i];
         old_vsn = get_vsn(lsn);
         vblock = old_vsn / SECTORS_PER_BLK;
         set_vcount(bank, vblock, get_vcount(bank, vblock)-1);
@@ -884,8 +875,18 @@ static void merge_buf_flush(UINT32 bank)
     page_num = new_vpn % PAGES_PER_BLK;
     page_offset = 0; // [MODIFIED] is it right? yes!
 
-    // for Page unit p2l list setting before flush to nand
-    set_p2l_list(bank);
+    /* for Page unit p2l list setting before flush to nand [start]
+     *
+     * for(int i =0; i<last_offset ; i++){
+     *    lsn = g_misc_meta[bank].merge_buf_lsn_offset[i];
+     *    g_misc_meta[bank].lsn_list_of_cur_vpage[i] = lsn;        
+     * }
+     * 
+     * mem_copy(MERGE_BUF_PTR(bank) + (BYTES_PER_SECTOR * (SECTORS_PER_PAGE - 1)),
+     *           &g_misc_meta[bank].lsn_list_of_cur_vpage,
+     *           sizeof(UINT32)* SECTORS_PER_PAGE);
+     * [end]
+     */ 
 
     // [TODO]: make new function in ftl_wapper.c (write merge buffer's content)
     nand_page_ptprogram_from_host(bank,
@@ -900,7 +901,7 @@ static void merge_buf_flush(UINT32 bank)
 	   lsn = g_misc_meta[bank].merge_buf_lsn_offset[i];
         set_vsn(lsn, new_vsn);
         // for Block unit setting [start], don't need when using Page unit p2l list
-        set_lsn(bank, new_vsn % SECTORS_PER_BLK ,lsn);
+        set_lsn(bank, i ,lsn);
         // [end]
         new_vsn ++;
     }
