@@ -115,6 +115,7 @@ UINT32 				  g_ftl_write_buf_id;
 #define set_miscblk_vpn(bank, vpn)    (g_misc_meta[bank].cur_miscblk_vpn = vpn)
 #define get_mapblk_vpn(bank, mapblk_lbn)      (g_misc_meta[bank].cur_mapblk_vpn[mapblk_lbn])
 #define set_mapblk_vpn(bank, mapblk_lbn, vpn) (g_misc_meta[bank].cur_mapblk_vpn[mapblk_lbn] = vpn)
+#define CHECK_LSECTORS(lsn)          ASSERT((lsn) < NUM_LSECTORS)
 #define CHECK_LPAGE(lpn)              ASSERT((lpn) < NUM_LPAGES)
 #define CHECK_VPAGE(vpn)              ASSERT((vpn) < (VBLKS_PER_BANK * PAGES_PER_BLK))
 #define EXIST_MERGE_BUF(psn) (0x80000000 & (psn)) // check if specific lsn is in merge buffer
@@ -644,7 +645,7 @@ static UINT32 assign_new_write_vpn(UINT32 const bank)
 
     // NOTE: if next new write page's offset is
     // the last page offset of vblock (i.e. PAGES_PER_BLK - 1),
-    if ((write_vpn % PAGES_PER_BLK) == (PAGES_PER_BLK - 2))
+    if ((write_vpn % PAGES_PER_BLK) == (PAGES_PER_BLK - 1))
     {
         // then, because of the flash controller limitation
         // (prohibit accessing a spare area (i.e. OOB)),
@@ -702,11 +703,11 @@ static void garbage_collection(UINT32 const bank)
     ASSERT(bank < NUM_BANKS);
     g_ftl_statistics[bank].gc_cnt++;
 
-    UINT32 src_lpn;
+    UINT32 src_lsn;
     UINT32 vt_vblock;
-    UINT32 free_vpn;
+    UINT32 free_vsn, free_vpn;
     UINT32 vcount; // valid page count in victim block
-    UINT32 src_page;
+    UINT32 src_sector;
     UINT32 gc_vblock;
 
     g_ftl_statistics[bank].gc_cnt++;
@@ -714,6 +715,7 @@ static void garbage_collection(UINT32 const bank)
     vt_vblock = get_vt_vblock(bank);   // get victim block
     vcount    = get_vcount(bank, vt_vblock);
     gc_vblock = get_gc_vblock(bank);
+    free_vsn  = gc_vblock * SECTORS_PER_BLK;
     free_vpn  = gc_vblock * PAGES_PER_BLK;
 
 /*     uart_printf("garbage_collection bank %d, vblock %d",bank, vt_vblock); */
@@ -727,50 +729,62 @@ static void garbage_collection(UINT32 const bank)
 
     // 1. load p2l list from last page offset of victim block (4B x PAGES_PER_BLK)
     // fix minor bug
+    // p2l list loading change
     nand_page_ptread(bank, vt_vblock, PAGES_PER_BLK - 1, 0,
-                     ((sizeof(UINT32) * PAGES_PER_BLK + BYTES_PER_SECTOR - 1 ) / BYTES_PER_SECTOR), FTL_BUF(bank), RETURN_WHEN_DONE);
-    mem_copy(g_misc_meta[bank].lpn_list_of_cur_vblock, FTL_BUF(bank), sizeof(UINT32) * PAGES_PER_BLK);
+                     ((sizeof(UINT32) * P2L_SECTORS_NUM + BYTES_PER_SECTOR - 1 ) / BYTES_PER_SECTOR), FTL_BUF(bank), RETURN_WHEN_DONE);
+    mem_copy(g_misc_meta[bank].lpn_list_of_cur_vblock, FTL_BUF(bank), sizeof(UINT32) * P2L_SECTORS_NUM);
+    
     // 2. copy-back all valid pages to free space
     // [TODO]: change to sector level. think about copy back policy [using buffer(?)]
-    for (src_page = 0; src_page < (PAGES_PER_BLK - 1); src_page++)
+    for (src_sector = 0; src_sector < (P2L_SECTORS_NUM); src_sector++)
     {
         // get lpn of victim block from a read lpn list
-        src_lpn = get_lpn(bank, src_page);
-        CHECK_VPAGE(get_vpn(src_lpn));
+        src_lsn = get_lsn(bank, src_sector);
+        CHECK_VPAGE(get_vsn(src_lsn));
 
-        // determine whether the page is valid or not
-        if (get_vpn(src_lpn) !=
-            ((vt_vblock * PAGES_PER_BLK) + src_page))
+        // determine whether the sector is valid or not
+        if (get_vsn(src_lsn) !=
+            ((vt_vblock * PAGES_PER_BLK) + src_sector))
         {
-            // invalid page
+            // invalid sector
             continue;
         }
-        ASSERT(get_lpn(bank, src_page) != INVALID);
-        CHECK_LPAGE(src_lpn);
+        ASSERT(get_lsn(bank, src_sector) != INVALID);
+        //CHECK_LPAGE(src_lpn);
+        CHECK_LSECTORS(src_lsn);
         // if the page is valid,
         // then do copy-back op. to free space: 
+        /*
+         * think aboutcopyback policy
+         * 
+         * 1. sector level copyback 
+         * 2. write in temp buffer and write in unit of page
+         */
         nand_page_copyback(bank,
                            vt_vblock,
                            src_page,
-                           free_vpn / PAGES_PER_BLK,
-                           free_vpn % PAGES_PER_BLK);
-        ASSERT((free_vpn / PAGES_PER_BLK) == gc_vblock);
+                           free_vsn / PAGES_PER_BLK,
+                           free_vsn % PAGES_PER_BLK);
+        ASSERT((free_vsn / SECTORS_PER_BLK) == gc_vblock);
         // update metadata
-        set_vpn(src_lpn, free_vpn);
-        set_lpn(bank, (free_vpn % PAGES_PER_BLK), src_lpn);
+        set_vsn(src_lsn, free_vsn);
+        set_lsn(bank, (free_vsn % SECTORS_PER_BLK), src_lsn);
 
-        free_vpn++;
+        free_vsn++;
+        if(free_vsn % SECTORS_PER_PAGE == 0){
+            free_vpn ++;
+        }
     }
 #if OPTION_ENABLE_ASSERT
     if (vcount == 0)
     {
-        ASSERT(free_vpn == (gc_vblock * PAGES_PER_BLK));
+        ASSERT(free_vsn == (gc_vblock * SECTORS_PER_BLK));
     }
 #endif
     // 3. erase victim block
     nand_block_erase(bank, vt_vblock);
-    ASSERT((free_vpn % PAGES_PER_BLK) < (PAGES_PER_BLK - 2));
-    ASSERT((free_vpn % PAGES_PER_BLK == vcount));
+    ASSERT((free_vsn % SECTORS_PER_BLK) < P2L_SECTORS_NUM);
+    ASSERT((free_vsn % SECTORS_PER_BLK == vcount));
 
 /*     uart_printf("gc page count : %d", vcount); */
 
@@ -888,7 +902,7 @@ static void merge_buf_flush(UINT32 bank)
     }
     
     // set_vcount
-    set_vcount(bank, vblock, get_vcount(bank, vblock) + SECTORS_PER_PAGE);
+    set_vcount(bank, vblock, get_vcount(bank, vblock) + last_offset);
     g_misc_meta[bank].merge_buf_offset = 0;
 }
 
