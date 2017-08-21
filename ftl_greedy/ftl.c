@@ -760,13 +760,16 @@ static void garbage_collection(UINT32 const bank)
          * 1. sector level copyback 
          * 2. write in temp buffer and write in unit of page
          */
-        nand_page_copyback(bank,
-                           vt_vblock,
-                           src_page,
-                           free_vsn / PAGES_PER_BLK,
-                           free_vsn % PAGES_PER_BLK);
-        ASSERT((free_vsn / SECTORS_PER_BLK) == gc_vblock);
+	/* TODO: change according to copy back policy
+         * nand_page_copyback(bank,
+         *                   vt_vblock,
+         *                   src_page,
+         *                   free_vsn / PAGES_PER_BLK,
+         *                   free_vsn % PAGES_PER_BLK);
+        */
+	ASSERT((free_vsn / SECTORS_PER_BLK) == gc_vblock);
         // update metadata
+	// TODO: this must be changed according to copy back policy as well. 
         set_vsn(src_lsn, free_vsn);
         set_lsn(bank, (free_vsn % SECTORS_PER_BLK), src_lsn);
 
