@@ -43,6 +43,8 @@
 // sectors_per_block
 #define SECTORS_PER_BLK	(SECTORS_PER_PAGE * PAGES_PER_BLK)
 
+#define P2L_SECTORS_NUM     ((PAGES_PER_BLK - 1) * SECTORS_PER_PAGE)
+
 //----------------------------------
 // metadata structure
 //----------------------------------
@@ -59,11 +61,9 @@ typedef struct _misc_metadata
     UINT32 cur_mapblk_vpn[MAPBLKS_PER_BANK]; // current write vpn for logging the age mapping info.
     UINT32 gc_vblock; // vblock number for garbage collection
     UINT32 free_blk_cnt; // total number of free block count
-    // for Block unit setting, not used in Page unit setting.
-    UINT32 lpn_list_of_cur_vblock[SECTORS_PER_BLK]; // logging lpn list of current write vblock for GC
-    // for Page unit setting [start]
-    //UINT32 lsn_list_of_cur_vpage[SECTORS_PER_PAGE]; // p2l list metadata need for GC
-    // [end]
+    // for Block unit setting,
+    UINT32 lpn_list_of_cur_vblock[P2L_SECTORS_NUM]; // logging lpn list of current write vblock for GC
+
     UINT32 merge_buf_offset;  // how many merge buffer is filled
     UINT32 merge_buf_lsn_offset[SECTORS_PER_PAGE]; // lsn managing table
 }misc_metadata; // per bank
@@ -105,12 +105,10 @@ UINT32 				  g_ftl_write_buf_id;
 #define set_new_write_vpn(bank, vpn)  (g_misc_meta[bank].cur_write_vpn = vpn)
 #define get_gc_vblock(bank)           (g_misc_meta[bank].gc_vblock)
 #define set_gc_vblock(bank, vblock)   (g_misc_meta[bank].gc_vblock = vblock)
-// [TODO]: change p2l table reference. set_lsn, get_lsn,
-// for Block unit setting [start], not used in Page unit setting.
+// for Block unit setting [start]
 #define set_lsn(bank, sector_num, lsn)    (g_misc_meta[bank].lpn_list_of_cur_vblock[sector_num] = lsn)
 #define get_lsn(bank, sector_num)       (g_misc_meta[bank].lpn_list_of_cur_vblock[sector_num])
 // [end] 
-#define get
 #define set_lpn(bank, page_num, lpn)  (g_misc_meta[bank].lpn_list_of_cur_vblock[page_num] = lpn)
 #define get_lpn(bank, page_num)       (g_misc_meta[bank].lpn_list_of_cur_vblock[page_num])
 #define get_miscblk_vpn(bank)         (g_misc_meta[bank].cur_miscblk_vpn)
@@ -120,7 +118,6 @@ UINT32 				  g_ftl_write_buf_id;
 #define CHECK_LPAGE(lpn)              ASSERT((lpn) < NUM_LPAGES)
 #define CHECK_VPAGE(vpn)              ASSERT((vpn) < (VBLKS_PER_BANK * PAGES_PER_BLK))
 #define EXIST_MERGE_BUF(psn) (0x80000000 & (psn)) // check if specific lsn is in merge buffer
-// EXIST_MERGE_BUF(get_psn(lsn)); 
 
 //----------------------------------
 // FTL internal function prototype
@@ -652,13 +649,13 @@ static UINT32 assign_new_write_vpn(UINT32 const bank)
         // then, because of the flash controller limitation
         // (prohibit accessing a spare area (i.e. OOB)),
         // thus, we persistenly write a lpn list into last page of vblock.
-        // for Block unit setting [start], not used when managing Page unit p2l list
-        mem_copy(FTL_BUF(bank), g_misc_meta[bank].lpn_list_of_cur_vblock, sizeof(UINT32) * SECTORS_PER_BLK);
+        // for Block unit setting [start]
+        mem_copy(FTL_BUF(bank), g_misc_meta[bank].lpn_list_of_cur_vblock, sizeof(UINT32) * P2L_SECTORS_NUM);
         // fix minor bug
         nand_page_ptprogram(bank, vblock, PAGES_PER_BLK - 1, 0,
-                            ((sizeof(UINT32) * PAGES_PER_BLK + BYTES_PER_SECTOR - 1 ) / BYTES_PER_SECTOR), FTL_BUF(bank));
+                            ((sizeof(UINT32) * P2L_SECTORS_NUM + BYTES_PER_SECTOR - 1 ) / BYTES_PER_SECTOR), FTL_BUF(bank));
 
-        mem_set_sram(g_misc_meta[bank].lpn_list_of_cur_vblock, 0x00000000, sizeof(UINT32) * SECTORS_PER_BLK);
+        mem_set_sram(g_misc_meta[bank].lpn_list_of_cur_vblock, 0x00000000, sizeof(UINT32) * P2L_SECTORS_NUM);
         //[end]
         inc_full_blk_cnt(bank);
 
@@ -820,10 +817,7 @@ static void write_merge_buf(UINT32 const bank, UINT32 const lsn)
 
     // if merge_buffer is full flush 
     // if add p2l to last page in block offset max --> SECTORS_PER_PAGE - 1 or -2
-    /* when using Page unit p2l list 
-     * flush when g_misc_meta[bank].merge_buf_offset == SECTORS_PER_PAGE-1
-     */
-    if(g_misc_meta[bank].merge_buf_offset == SECTORS_PER_PAGE){ 
+    if(g_misc_meta[bank].merge_buf_offset == SECTORS_PER_PAGE - 1){ 
         merge_buf_flush(bank);
         g_misc_meta[bank].merge_buf_offset = 0;
     }
@@ -875,19 +869,6 @@ static void merge_buf_flush(UINT32 bank)
     page_num = new_vpn % PAGES_PER_BLK;
     page_offset = 0; // [MODIFIED] is it right? yes!
 
-    /* for Page unit p2l list setting before flush to nand [start]
-     *
-     * for(int i =0; i<last_offset ; i++){
-     *    lsn = g_misc_meta[bank].merge_buf_lsn_offset[i];
-     *    g_misc_meta[bank].lsn_list_of_cur_vpage[i] = lsn;        
-     * }
-     * 
-     * mem_copy(MERGE_BUF_PTR(bank) + (BYTES_PER_SECTOR * (SECTORS_PER_PAGE - 1)),
-     *           &g_misc_meta[bank].lsn_list_of_cur_vpage,
-     *           sizeof(UINT32)* SECTORS_PER_PAGE);
-     * [end]
-     */ 
-
     // [TODO]: make new function in ftl_wapper.c (write merge buffer's content)
     nand_page_ptprogram_from_host(bank,
                                        vblock,
@@ -900,7 +881,7 @@ static void merge_buf_flush(UINT32 bank)
     for(int i = 0 ; i < last_offset;  i++){
 	   lsn = g_misc_meta[bank].merge_buf_lsn_offset[i];
         set_vsn(lsn, new_vsn);
-        // for Block unit setting [start], don't need when using Page unit p2l list
+        // for Block unit setting [start],
         set_lsn(bank, i ,lsn);
         // [end]
         new_vsn ++;
