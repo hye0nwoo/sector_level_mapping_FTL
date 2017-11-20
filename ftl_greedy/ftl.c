@@ -62,7 +62,7 @@ typedef struct _misc_metadata
     UINT32 gc_vblock; // vblock number for garbage collection
     UINT32 free_blk_cnt; // total number of free block count
     // for Block unit setting,
-    UINT32 lpn_list_of_cur_vblock[P2L_SECTORS_NUM]; // logging lpn list of current write vblock for GC
+    UINT32 lsn_list_of_cur_vblock[P2L_SECTORS_NUM]; // logging lpn list of current write vblock for GC
 
     UINT32 merge_buf_offset;  // how many merge buffer is filled
     UINT32 merge_buf_lsn_offset[SECTORS_PER_PAGE]; // lsn managing table
@@ -106,11 +106,11 @@ UINT32 				  g_ftl_write_buf_id;
 #define get_gc_vblock(bank)           (g_misc_meta[bank].gc_vblock)
 #define set_gc_vblock(bank, vblock)   (g_misc_meta[bank].gc_vblock = vblock)
 // for Block unit setting [start]
-#define set_lsn(bank, sector_num, lsn)    (g_misc_meta[bank].lpn_list_of_cur_vblock[sector_num] = lsn)
-#define get_lsn(bank, sector_num)       (g_misc_meta[bank].lpn_list_of_cur_vblock[sector_num])
+#define set_lsn(bank, sector_num, lsn)    (g_misc_meta[bank].lsn_list_of_cur_vblock[sector_num] = lsn)
+#define get_lsn(bank, sector_num)       (g_misc_meta[bank].lsn_list_of_cur_vblock[sector_num])
 // [end] 
-#define set_lpn(bank, page_num, lpn)  (g_misc_meta[bank].lpn_list_of_cur_vblock[page_num] = lpn)
-#define get_lpn(bank, page_num)       (g_misc_meta[bank].lpn_list_of_cur_vblock[page_num])
+//#define set_lpn(bank, page_num, lpn)  (g_misc_meta[bank].lpn_list_of_cur_vblock[page_num] = lpn)
+//#define get_lpn(bank, page_num)       (g_misc_meta[bank].lpn_list_of_cur_vblock[page_num])
 #define get_miscblk_vpn(bank)         (g_misc_meta[bank].cur_miscblk_vpn)
 #define set_miscblk_vpn(bank, vpn)    (g_misc_meta[bank].cur_miscblk_vpn = vpn)
 #define get_mapblk_vpn(bank, mapblk_lbn)      (g_misc_meta[bank].cur_mapblk_vpn[mapblk_lbn])
@@ -651,12 +651,12 @@ static UINT32 assign_new_write_vpn(UINT32 const bank)
         // (prohibit accessing a spare area (i.e. OOB)),
         // thus, we persistenly write a lpn list into last page of vblock.
         // for Block unit setting [start]
-        mem_copy(FTL_BUF(bank), g_misc_meta[bank].lpn_list_of_cur_vblock, sizeof(UINT32) * P2L_SECTORS_NUM);
+        mem_copy(FTL_BUF(bank), g_misc_meta[bank].lsn_list_of_cur_vblock, sizeof(UINT32) * P2L_SECTORS_NUM);
         // fix minor bug
         nand_page_ptprogram(bank, vblock, PAGES_PER_BLK - 1, 0,
                             ((sizeof(UINT32) * P2L_SECTORS_NUM + BYTES_PER_SECTOR - 1 ) / BYTES_PER_SECTOR), FTL_BUF(bank));
 
-        mem_set_sram(g_misc_meta[bank].lpn_list_of_cur_vblock, 0x00000000, sizeof(UINT32) * P2L_SECTORS_NUM);
+        mem_set_sram(g_misc_meta[bank].lsn_list_of_cur_vblock, 0x00000000, sizeof(UINT32) * P2L_SECTORS_NUM);
         //[end]
         inc_full_blk_cnt(bank);
 
