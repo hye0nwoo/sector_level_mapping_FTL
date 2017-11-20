@@ -1,3 +1,8 @@
+What this project for
+
+1. this project is for sector level mapping FTL
+
+
 How to build and run Jasmine
 
 1.1 Compile the firmware using GNU tools
@@ -108,5 +113,4 @@ How to build and run Jasmine
 	Turn on the power to Jasmine board. Jasmine will be busy doing internal low level format.
 	When the low level format is finished, the LED at D4 position will be lit.
 	Now that Jasmine is ready to process SATA commands, you can plug SATA cable.
-
 
