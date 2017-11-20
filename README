@@ -2,6 +2,9 @@ What this project for
 
 1. this project is for sector level mapping FTL
 
+2. modified ...
+	modified read / write operation to sector level
+	
 
 How to build and run Jasmine
 
